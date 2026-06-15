@@ -1,7 +1,8 @@
 var MidtsSheetService = (function () {
   var SHEETS = {
     LEADS: 'Leads',
-    WEBHOOK_LOGS: 'Webhook Logs'
+    WEBHOOK_LOGS: 'Webhook Logs',
+    EMAIL_LOGS: 'Email Logs'
   };
 
   var LEAD_HEADERS = [
@@ -28,6 +29,17 @@ var MidtsSheetService = (function () {
     'Email',
     'Source',
     'Payload JSON'
+  ];
+
+  var EMAIL_LOG_HEADERS = [
+    'Logged At',
+    'Lead ID',
+    'Submission ID',
+    'Recipient Email',
+    'Internal Copy Email',
+    'Subject',
+    'Status',
+    'Message'
   ];
 
   function getSpreadsheet() {
@@ -76,12 +88,18 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS).appendRow(row);
   }
 
+  function appendEmailLog(row) {
+    getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS).appendRow(row);
+  }
+
   function ensureLaunchSheets() {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
+    getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
     return {
       leadsSheet: SHEETS.LEADS,
-      logsSheet: SHEETS.WEBHOOK_LOGS
+      logsSheet: SHEETS.WEBHOOK_LOGS,
+      emailLogsSheet: SHEETS.EMAIL_LOGS
     };
   }
 
@@ -89,8 +107,10 @@ var MidtsSheetService = (function () {
     SHEETS: SHEETS,
     LEAD_HEADERS: LEAD_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
+    EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
     appendLeadRow: appendLeadRow,
     appendWebhookLog: appendWebhookLog,
+    appendEmailLog: appendEmailLog,
     ensureLaunchSheets: ensureLaunchSheets
   };
 })();
