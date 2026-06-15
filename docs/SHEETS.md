@@ -36,10 +36,24 @@ The backend can create these automatically by running `setupLaunchSheets()` from
 | Source | Source label. |
 | Payload JSON | Redacted submitted payload. |
 
+### Email Logs
+
+| Column | Purpose |
+| --- | --- |
+| Logged At | Timestamp of email attempt. |
+| Lead ID | Backend lead identifier. |
+| Submission ID | Frontend submission ID if available. |
+| Recipient Email | Client email address. |
+| Internal Copy Email | MIDTS copy/BCC address. |
+| Subject | Email subject sent to the client. |
+| Status | `sent`, `failed`, or `skipped`. |
+| Message | Delivery result or error message. |
+
 ## Launch Rule
 
-A website submission is not considered successful unless:
+A website submission is not considered fully complete unless:
 
 1. The response body returns `ok: true`.
 2. A row appears in `Leads`.
 3. A corresponding `success` row appears in `Webhook Logs`.
+4. A corresponding `sent` row appears in `Email Logs`.
