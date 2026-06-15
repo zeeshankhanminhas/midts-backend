@@ -10,9 +10,11 @@ The first launchable version does one job well:
 2. Validate the shared webhook token.
 3. Write a lead row into the Google Sheet.
 4. Record every attempt in a webhook log sheet.
-5. Return a clear success or failure response.
+5. Send a client acknowledgement email.
+6. Record every acknowledgement attempt in an email log sheet.
+7. Return a clear success or failure response.
 
-No quote automation, vendor routing, email sequences, document orchestration, or Apps Script sync complexity is included until lead capture is proven.
+No quote automation, vendor routing, document orchestration, or Apps Script sync complexity is included until lead capture and acknowledgement email are proven.
 
 ## Source Of Truth
 
@@ -25,6 +27,7 @@ Apps Script is the deployment target only.
 - Google Apps Script V8 runtime
 - Google Sheet for lead storage
 - Script Properties for secrets/config
+- MailApp permission for acknowledgement email
 
 ## Required Script Properties
 
@@ -32,6 +35,7 @@ Apps Script is the deployment target only.
 | --- | --- |
 | `WEBSITE_WEBHOOK_TOKEN` | Shared secret expected from the website form payload. |
 | `SPREADSHEET_ID` | Optional. If omitted, the script uses the active spreadsheet. |
+| `INTAKE_EMAIL` | Optional. Internal BCC/reply-to address. Defaults to `intake@midts.com`. |
 
 ## Public Endpoint
 
