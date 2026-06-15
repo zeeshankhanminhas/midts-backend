@@ -50,3 +50,22 @@ function testWebhookRouterWithSamplePost() {
     }
   }).getContent();
 }
+
+function testAcknowledgementEmail() {
+  var leadResult = {
+    ok: true,
+    leadId: 'MIDTS-EMAIL-TEST',
+    submissionId: 'email-test-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss'),
+    lead: {
+      submissionId: 'email-test',
+      fullName: 'MIDTS Test Recipient',
+      email: Session.getActiveUser().getEmail(),
+      company: 'MIDTS',
+      projectType: 'Email test',
+      briefRequirement: 'Testing the MIDTS client acknowledgement email.',
+      source: 'Apps Script Email Test'
+    }
+  };
+
+  return MidtsEmailService.sendLeadAcknowledgement(leadResult);
+}
