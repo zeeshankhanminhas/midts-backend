@@ -34,10 +34,13 @@ var MidtsWebhookRouter = (function () {
         return MidtsResponseService.failure(leadResult.code, leadResult.message, { requestId: requestId });
       }
 
+      var emailResult = MidtsEmailService.sendLeadAcknowledgement(leadResult);
+      var webhookMessage = emailResult.ok ? 'Lead created and acknowledgement sent' : 'Lead created; acknowledgement email failed';
+
       MidtsLogger.logWebhookAttempt({
         requestId: requestId,
         outcome: 'success',
-        message: 'Lead created',
+        message: webhookMessage,
         payload: scrubPayload(payload),
         submissionId: leadResult.submissionId,
         email: leadResult.lead.email,
@@ -48,7 +51,8 @@ var MidtsWebhookRouter = (function () {
         requestId: requestId,
         leadId: leadResult.leadId,
         submissionId: leadResult.submissionId,
-        message: 'Lead created successfully.'
+        emailStatus: emailResult.status,
+        message: webhookMessage
       });
     } catch (error) {
       try {
