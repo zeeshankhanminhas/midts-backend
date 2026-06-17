@@ -2,7 +2,11 @@ function doPost(e) {
   return MidtsWebhookRouter.handlePost(e);
 }
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'decision') {
+    return MidtsDecisionService.handleDecisionRequest(e);
+  }
+
   return MidtsResponseService.success({
     service: 'MIDTS Backend',
     status: 'ready',
@@ -114,6 +118,27 @@ function testLifecycleIntakeWithSamplePost() {
       contents: JSON.stringify(sample)
     }
   }).getContent();
+}
+
+function testDecisionQualified() {
+  return testDecision_('qualified');
+}
+
+function testDecisionNeedsMoreInfo() {
+  return testDecision_('needs-more-info');
+}
+
+function testDecisionNurture() {
+  return testDecision_('nurture');
+}
+
+function testDecisionNotSuitable() {
+  return testDecision_('not-suitable');
+}
+
+function testDecision_(decision) {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsDecisionService.applyDecision(leadId, decision, 'Apps Script Test');
 }
 
 function getTestEmail_() {
