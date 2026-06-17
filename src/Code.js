@@ -62,7 +62,7 @@ function testAcknowledgementEmail() {
     lead: {
       submissionId: 'email-test',
       fullName: 'MIDTS Test Recipient',
-      email: Session.getActiveUser().getEmail(),
+      email: getTestEmail_(),
       company: 'MIDTS',
       projectType: 'Email test',
       briefRequirement: 'Testing the MIDTS client acknowledgement email.',
@@ -84,7 +84,7 @@ function testInternalReviewNotification() {
     lead: {
       submissionId: 'internal-test',
       fullName: 'Internal Review Test',
-      email: Session.getActiveUser().getEmail(),
+      email: getTestEmail_(),
       company: 'MIDTS',
       projectType: 'Lifecycle test',
       briefRequirement: 'Testing the MIDTS internal review notification.',
@@ -100,7 +100,7 @@ function testLifecycleIntakeWithSamplePost() {
     webhookToken: MidtsConfig.getWebhookToken(),
     lead_id: 'lifecycle-sample-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss'),
     full_name: 'Lifecycle Sample Client',
-    work_email: Session.getActiveUser().getEmail(),
+    work_email: getTestEmail_(),
     company: 'Sample Company',
     project_type: 'CAD support',
     brief_requirement: 'Testing the full intake lifecycle: lead row, client acknowledgement, internal notification, and logs.',
@@ -114,4 +114,8 @@ function testLifecycleIntakeWithSamplePost() {
       contents: JSON.stringify(sample)
     }
   }).getContent();
+}
+
+function getTestEmail_() {
+  return MidtsConfig.getScriptProperty('TEST_EMAIL') || MidtsConfig.getScriptProperty('INTAKE_EMAIL') || 'intake@midts.com';
 }
