@@ -17,7 +17,36 @@ var MidtsSheetService = (function () {
     'Source',
     'Page URL',
     'Status',
-    'Raw Payload JSON'
+    'Raw Payload JSON',
+    'Lifecycle Status',
+    'Review Status',
+    'Qualification Decision',
+    'Human Approval',
+    'Reviewer',
+    'Review Notes',
+    'Decision Timestamp',
+    'Next Action',
+    'Next Action Due',
+    'Capability Statement Required',
+    'Capability Statement Sent',
+    'Capability Statement Sent At',
+    'Capability Statement Link',
+    'Quote Required',
+    'Quote Reference',
+    'Quote Status',
+    'Quote Document Link',
+    'Quote Sent At',
+    'Nurture Status',
+    'Nurture Reason',
+    'Next Nurture Date',
+    'Nurture Attempts',
+    'Last Nurture Email Sent At',
+    'Info Request Status',
+    'Missing Information Needed',
+    'Final Outcome',
+    'Close Reason',
+    'Closed At',
+    'Last Updated At'
   ];
 
   var LOG_HEADERS = [
@@ -62,8 +91,12 @@ var MidtsSheetService = (function () {
   }
 
   function ensureHeaders(sheet, headers) {
-    var current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-    var needsHeaders = current.join('').trim() === '';
+    var existingWidth = Math.max(sheet.getLastColumn(), headers.length);
+    var current = sheet.getRange(1, 1, 1, existingWidth).getValues()[0];
+    var populatedHeaders = current.filter(function (header) {
+      return String(header || '').trim() !== '';
+    });
+    var needsHeaders = populatedHeaders.length === 0;
 
     if (needsHeaders) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -71,12 +104,16 @@ var MidtsSheetService = (function () {
       return;
     }
 
-    var mismatch = headers.some(function (header, index) {
-      return current[index] !== header;
-    });
+    for (var i = 0; i < populatedHeaders.length; i += 1) {
+      if (headers[i] !== populatedHeaders[i]) {
+        throw new Error('Sheet header mismatch on ' + sheet.getName() + '. Expected launch schema before writing.');
+      }
+    }
 
-    if (mismatch) {
-      throw new Error('Sheet header mismatch on ' + sheet.getName() + '. Expected launch schema before writing.');
+    if (populatedHeaders.length < headers.length) {
+      var missingHeaders = headers.slice(populatedHeaders.length);
+      sheet.getRange(1, populatedHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+      sheet.setFrozenRows(1);
     }
   }
 
