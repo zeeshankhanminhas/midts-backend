@@ -135,6 +135,30 @@ function testDecision_(decision) {
   return MidtsDecisionService.applyDecision(leadId, decision, 'Apps Script Test');
 }
 
+function testVendorSafePackageReady() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsVendorPricingService.markVendorSafePackageReady(leadId, 'Apps Script Test');
+}
+
+function testVendorPricingWithSamplePayload() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsVendorPricingService.recordVendorPricing({
+    leadId: leadId,
+    vendorName: 'Sample Vendor',
+    vendorEmail: getTestEmail_(),
+    vendorCost: 1000,
+    vendorCurrency: 'GBP',
+    marginType: 'percentage',
+    marginValue: 25,
+    revisionReason: 'Initial vendor pricing test',
+    notes: 'Creates a Vendor Pricing row and moves the lead to Margin Review.'
+  });
+}
+
+function testMarginCalculation() {
+  return MidtsVendorPricingService.calculateClientPrice(1000, 'percentage', 25);
+}
+
 function postSampleStep1_(submissionId, fullName) {
   var sample = {
     webhookToken: MidtsConfig.getWebhookToken(),
