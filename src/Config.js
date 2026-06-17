@@ -1,7 +1,9 @@
 var MidtsConfig = (function () {
   var KEYS = {
     SPREADSHEET_ID: 'SPREADSHEET_ID',
-    WEBSITE_WEBHOOK_TOKEN: 'WEBSITE_WEBHOOK_TOKEN'
+    WEBSITE_WEBHOOK_TOKEN: 'WEBSITE_WEBHOOK_TOKEN',
+    DECISION_TOKEN: 'DECISION_TOKEN',
+    WEB_APP_URL: 'WEB_APP_URL'
   };
 
   function getScriptProperty(key) {
@@ -25,11 +27,21 @@ var MidtsConfig = (function () {
     return getRequiredScriptProperty(KEYS.WEBSITE_WEBHOOK_TOKEN);
   }
 
+  function getDecisionToken() {
+    return getRequiredScriptProperty(KEYS.DECISION_TOKEN);
+  }
+
+  function getWebAppUrl() {
+    return getRequiredScriptProperty(KEYS.WEB_APP_URL);
+  }
+
   return {
     KEYS: KEYS,
     getScriptProperty: getScriptProperty,
     getRequiredScriptProperty: getRequiredScriptProperty,
     getSpreadsheetId: getSpreadsheetId,
-    getWebhookToken: getWebhookToken
+    getWebhookToken: getWebhookToken,
+    getDecisionToken: getDecisionToken,
+    getWebAppUrl: getWebAppUrl
   };
 })();
