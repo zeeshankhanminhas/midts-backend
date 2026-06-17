@@ -142,17 +142,26 @@ var MidtsSheetService = (function () {
   }
 
   function findLeadById(leadId) {
+    return findLeadByColumnValue_('Lead ID', leadId);
+  }
+
+  function findLeadBySubmissionId(submissionId) {
+    if (!submissionId) return null;
+    return findLeadByColumnValue_('Submission ID', submissionId);
+  }
+
+  function findLeadByColumnValue_(columnName, value) {
     var sheet = getLeadSheet();
     var headerMap = getHeaderMap(sheet);
-    var leadIdColumn = headerMap['Lead ID'];
-    if (!leadIdColumn) throw new Error('Lead ID column missing.');
+    var targetColumn = headerMap[columnName];
+    if (!targetColumn) throw new Error(columnName + ' column missing.');
 
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return null;
 
-    var values = sheet.getRange(2, leadIdColumn, lastRow - 1, 1).getValues();
+    var values = sheet.getRange(2, targetColumn, lastRow - 1, 1).getValues();
     for (var i = 0; i < values.length; i += 1) {
-      if (String(values[i][0]) === String(leadId)) {
+      if (String(values[i][0]) === String(value)) {
         var rowNumber = i + 2;
         var rowValues = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
         return {
@@ -212,6 +221,7 @@ var MidtsSheetService = (function () {
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
     findLeadById: findLeadById,
+    findLeadBySubmissionId: findLeadBySubmissionId,
     updateLeadById: updateLeadById,
     ensureLaunchSheets: ensureLaunchSheets
   };
