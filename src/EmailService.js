@@ -165,7 +165,11 @@ var MidtsEmailService = (function () {
       'Brief:',
       lead.briefRequirement || 'No brief supplied',
       '',
-      'Human decision required: Qualified / Needs More Info / Nurture / Not Suitable'
+      'Decision links:',
+      'Qualified: ' + MidtsDecisionService.buildDecisionUrl(leadResult.leadId, 'qualified'),
+      'Needs More Info: ' + MidtsDecisionService.buildDecisionUrl(leadResult.leadId, 'needs-more-info'),
+      'Nurture: ' + MidtsDecisionService.buildDecisionUrl(leadResult.leadId, 'nurture'),
+      'Not Suitable: ' + MidtsDecisionService.buildDecisionUrl(leadResult.leadId, 'not-suitable')
     ].join('\n');
   }
 
@@ -184,9 +188,16 @@ var MidtsEmailService = (function () {
       '<strong>Project Type:</strong> ' + escapeHtml(lead.projectType || '') + '</p>',
       '<p><strong>Brief:</strong></p>',
       '<p>' + escapeHtml(lead.briefRequirement || 'No brief supplied').replace(/\n/g, '<br>') + '</p>',
-      '<p><strong>Human decision required:</strong> Qualified / Needs More Info / Nurture / Not Suitable</p>',
+      '<p><strong>Choose the review decision:</strong></p>',
+      '<p>' + decisionButton_(leadResult.leadId, 'qualified', 'Qualified') + ' ' + decisionButton_(leadResult.leadId, 'needs-more-info', 'Needs More Info') + '</p>',
+      '<p>' + decisionButton_(leadResult.leadId, 'nurture', 'Nurture') + ' ' + decisionButton_(leadResult.leadId, 'not-suitable', 'Not Suitable') + '</p>',
       '</div>'
     ].join('');
+  }
+
+  function decisionButton_(leadId, decisionKey, label) {
+    var url = MidtsDecisionService.buildDecisionUrl(leadId, decisionKey);
+    return '<a href="' + escapeHtml(url) + '" style="display:inline-block;margin:4px 6px 4px 0;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none;font-size:14px">' + escapeHtml(label) + '</a>';
   }
 
   function escapeHtml(value) {
