@@ -47,7 +47,7 @@ var MidtsDecisionService = (function () {
     if (guardResult) return guardResult;
 
     var now = new Date();
-    var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now);
+    var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now, existing.lead);
     var updatedLead = MidtsSheetService.updateLeadById(leadId, updates);
     var outcomeEmailResult = MidtsEmailService.sendDecisionOutcomeEmail({
       leadId: leadId,
@@ -162,7 +162,7 @@ var MidtsDecisionService = (function () {
     return { ok: true };
   }
 
-  function buildDecisionUpdates_(decisionKey, decisionLabel, reviewer, now) {
+  function buildDecisionUpdates_(decisionKey, decisionLabel, reviewer, now, lead) {
     var base = {
       'Qualification Decision': decisionLabel,
       'Human Approval': 'Approved',
@@ -173,19 +173,7 @@ var MidtsDecisionService = (function () {
     };
 
     if (decisionKey === 'qualified') {
-      return Object.assign(base, {
-        'Status': 'Qualified',
-        'Lifecycle Status': 'Quote Path',
-        'Next Action': 'Prepare quote',
-        'Next Action Due': now,
-        'Quote Required': 'Yes',
-        'Quote Reference': createQuoteReference_(now),
-        'Quote Status': 'Draft Needed',
-        'Capability Statement Required': 'No',
-        'Info Request Status': '',
-        'Nurture Status': '',
-        'Final Outcome': ''
-      });
+      return Object.assign(base, buildQualifiedUpdates_(now, lead || {}));
     }
 
     if (decisionKey === 'needs-more-info') {
@@ -197,6 +185,8 @@ var MidtsDecisionService = (function () {
         'Info Request Status': 'Required',
         'Quote Required': 'No',
         'Quote Status': '',
+        'Vendor Pricing Required': 'No',
+        'Vendor Pricing Status': '',
         'Nurture Status': '',
         'Final Outcome': ''
       });
@@ -213,6 +203,8 @@ var MidtsDecisionService = (function () {
         'Nurture Attempts': 0,
         'Quote Required': 'No',
         'Quote Status': '',
+        'Vendor Pricing Required': 'No',
+        'Vendor Pricing Status': '',
         'Info Request Status': '',
         'Final Outcome': ''
       });
@@ -225,12 +217,54 @@ var MidtsDecisionService = (function () {
       'Next Action Due': '',
       'Quote Required': 'No',
       'Quote Status': '',
+      'Vendor Pricing Required': 'No',
+      'Vendor Pricing Status': '',
       'Info Request Status': '',
       'Nurture Status': '',
       'Final Outcome': 'Not Suitable',
       'Close Reason': 'Marked not suitable from review decision',
       'Closed At': now
     });
+  }
+
+  function buildQualifiedUpdates_(now, lead) {
+    var quoteReference = lead['Quote Reference'] || createQuoteReference_(now);
+    var vendorSafeRequired = isYes_(lead['Vendor Safe Package Required']);
+    var vendorSafeReady = isYes_(lead['Vendor Safe Package Ready']);
+
+    if (vendorSafeRequired && !vendorSafeReady) {
+      return {
+        'Status': 'Qualified',
+        'Lifecycle Status': 'Vendor Safe Review',
+        'Next Action': 'Prepare vendor-safe package',
+        'Next Action Due': now,
+        'Quote Required': 'Yes',
+        'Quote Reference': quoteReference,
+        'Quote Status': 'Waiting Vendor Safe Package',
+        'Vendor Pricing Required': 'Yes',
+        'Vendor Pricing Status': 'Vendor Safe Package Required',
+        'Capability Statement Required': 'No',
+        'Info Request Status': '',
+        'Nurture Status': '',
+        'Final Outcome': ''
+      };
+    }
+
+    return {
+      'Status': 'Qualified',
+      'Lifecycle Status': 'Vendor Pricing',
+      'Next Action': 'Contact vendor',
+      'Next Action Due': now,
+      'Quote Required': 'Yes',
+      'Quote Reference': quoteReference,
+      'Quote Status': 'Waiting Vendor Price',
+      'Vendor Pricing Required': 'Yes',
+      'Vendor Pricing Status': 'Contact Vendor',
+      'Capability Statement Required': 'No',
+      'Info Request Status': '',
+      'Nurture Status': '',
+      'Final Outcome': ''
+    };
   }
 
   function buildDecisionUrl(leadId, decisionKey) {
@@ -256,6 +290,11 @@ var MidtsDecisionService = (function () {
     var date = new Date();
     date.setDate(date.getDate() + days);
     return date;
+  }
+
+  function isYes_(value) {
+    var normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'yes' || normalized === 'true' || normalized === 'required';
   }
 
   function htmlResponse_(title, message) {
