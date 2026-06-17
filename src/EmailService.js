@@ -29,12 +29,12 @@ var MidtsEmailService = (function () {
         htmlBody: htmlBody
       });
 
-      logEmail(leadResult, lead.email, intakeEmail, subject, 'sent', 'Client acknowledgement sent');
+      logEmail(leadResult, lead.email, intakeEmail, subject, 'sent', 'Client acknowledgement and Step 2 request sent');
 
       return {
         ok: true,
         status: 'sent',
-        message: 'Client acknowledgement sent.'
+        message: 'Client acknowledgement and Step 2 request sent.'
       };
     } catch (error) {
       var message = String(error && error.message ? error.message : error);
@@ -61,7 +61,7 @@ var MidtsEmailService = (function () {
       };
     }
 
-    var subject = 'New MIDTS lead requires review - ' + leadId;
+    var subject = 'MIDTS Step 2 ready for review - ' + leadId;
     var body = buildInternalPlainTextBody(leadResult);
     var htmlBody = buildInternalHtmlBody(leadResult);
 
@@ -75,12 +75,12 @@ var MidtsEmailService = (function () {
         htmlBody: htmlBody
       });
 
-      logEmail(leadResult, intakeEmail, '', subject, 'sent', 'Internal review notification sent');
+      logEmail(leadResult, intakeEmail, '', subject, 'sent', 'Internal review notification sent after Step 2');
 
       return {
         ok: true,
         status: 'sent',
-        message: 'Internal review notification sent.'
+        message: 'Internal review notification sent after Step 2.'
       };
     } catch (error) {
       var message = String(error && error.message ? error.message : error);
@@ -143,9 +143,9 @@ var MidtsEmailService = (function () {
   }
 
   function buildQualifiedInternalEmail_(decisionResult, lead, intakeEmail) {
-    var subject = 'Quote preparation required - ' + decisionResult.leadId;
+    var subject = 'Vendor pricing required - ' + decisionResult.leadId;
     var lines = [
-      'A MIDTS lead has been qualified and needs quote preparation.',
+      'A MIDTS lead has been qualified after Step 2 and now needs vendor pricing review.',
       '',
       'Lead ID: ' + decisionResult.leadId,
       'Quote Reference: ' + (decisionResult.updates['Quote Reference'] || ''),
@@ -157,7 +157,7 @@ var MidtsEmailService = (function () {
       'Brief:',
       lead.briefRequirement || 'No brief supplied',
       '',
-      'Next Action: Prepare quote'
+      'Next Action: Contact vendor / resolve vendor pricing before margin review and quote preparation.'
     ];
     return {
       to: intakeEmail,
@@ -165,7 +165,7 @@ var MidtsEmailService = (function () {
       subject: subject,
       body: lines.join('\n'),
       htmlBody: paragraphHtml_(lines),
-      logMessage: 'Qualified outcome email sent internally'
+      logMessage: 'Qualified vendor pricing email sent internally'
     };
   }
 
@@ -174,7 +174,7 @@ var MidtsEmailService = (function () {
     var lines = [
       'Hello ' + lead.fullName + ',',
       '',
-      'Thank you for your enquiry. We have reviewed the initial requirement and need a little more information before confirming the best next step.',
+      'Thank you for completing the technical requirement. We have reviewed the information and need a little more detail before confirming the best next step.',
       '',
       'Please reply to this email with any additional drawings, files, dimensions, material details, deadlines, or background information that would help us assess the work properly.',
       '',
@@ -199,7 +199,7 @@ var MidtsEmailService = (function () {
     var lines = [
       'Hello ' + lead.fullName + ',',
       '',
-      'Thank you again for contacting MIDTS. We have reviewed your enquiry and will keep it on our follow-up list while the timing or requirement develops further.',
+      'Thank you again for contacting MIDTS and sharing the technical requirement. We have reviewed it and will keep it on our follow-up list while the timing or requirement develops further.',
       '',
       'If anything changes, or if you have files or extra context to share, reply to this email and include the reference below.',
       '',
@@ -224,7 +224,7 @@ var MidtsEmailService = (function () {
     var lines = [
       'Hello ' + lead.fullName + ',',
       '',
-      'Thank you for contacting MIDTS. After reviewing the enquiry, we do not think we are the right fit for this requirement at this stage.',
+      'Thank you for completing the technical requirement. After reviewing the enquiry, we do not think we are the right fit for this requirement at this stage.',
       '',
       'We appreciate you getting in touch and wish you the best with the project.',
       '',
@@ -264,18 +264,17 @@ var MidtsEmailService = (function () {
   }
 
   function buildPlainTextBody(lead, leadId) {
+    var step2Url = buildStep2Url_(leadId, lead.submissionId);
     return [
       'Hello ' + lead.fullName + ',',
       '',
-      'Thank you for contacting MIDTS. We have received your enquiry and will review the technical requirement before confirming the next step.',
+      'Thank you for contacting MIDTS. We have received your initial enquiry.',
       '',
       'Reference: ' + leadId,
       'Project type: ' + (lead.projectType || 'Not specified'),
       '',
-      'Summary received:',
-      lead.briefRequirement || 'No brief supplied',
-      '',
-      'If you need to add information or files, reply to this email and include the reference above.',
+      'Before we can review the requirement commercially, please complete the technical requirement step.',
+      step2Url ? 'Step 2 link: ' + step2Url : 'If you do not have the Step 2 link, reply to this email and we will help you complete the technical requirement.',
       '',
       'MIDTS',
       'intake@midts.com'
@@ -283,33 +282,33 @@ var MidtsEmailService = (function () {
   }
 
   function buildHtmlBody(lead, leadId) {
-    return paragraphHtml_([
+    var step2Url = buildStep2Url_(leadId, lead.submissionId);
+    var lines = [
       'Hello ' + lead.fullName + ',',
       '',
-      'Thank you for contacting MIDTS. We have received your enquiry and will review the technical requirement before confirming the next step.',
+      'Thank you for contacting MIDTS. We have received your initial enquiry.',
       '',
       'Reference: ' + leadId,
       'Project type: ' + (lead.projectType || 'Not specified'),
       '',
-      'Summary received:',
-      lead.briefRequirement || 'No brief supplied',
-      '',
-      'If you need to add information or files, reply to this email and include the reference above.',
+      'Before we can review the requirement commercially, please complete the technical requirement step.',
+      step2Url ? 'Step 2 link: ' + step2Url : 'If you do not have the Step 2 link, reply to this email and we will help you complete the technical requirement.',
       '',
       'MIDTS',
       'intake@midts.com'
-    ]);
+    ];
+    return paragraphHtml_(lines);
   }
 
   function buildInternalPlainTextBody(leadResult) {
     var lead = leadResult.lead;
     return [
-      'New MIDTS lead requires review.',
+      'MIDTS Step 2 is complete and requires review.',
       '',
       'Lead ID: ' + leadResult.leadId,
-      'Lifecycle Status: ' + (leadResult.lifecycleStatus || 'New Lead'),
+      'Lifecycle Status: ' + (leadResult.lifecycleStatus || 'Pending Review'),
       'Review Status: ' + (leadResult.reviewStatus || 'Pending Review'),
-      'Next Action: ' + (leadResult.nextAction || 'Review lead'),
+      'Next Action: ' + (leadResult.nextAction || 'Review technical requirement'),
       '',
       'Client: ' + (lead.fullName || ''),
       'Email: ' + (lead.email || ''),
@@ -331,11 +330,11 @@ var MidtsEmailService = (function () {
     var lead = leadResult.lead;
     return [
       '<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:720px">',
-      '<h2 style="font-size:18px;margin:0 0 16px">New MIDTS lead requires review</h2>',
+      '<h2 style="font-size:18px;margin:0 0 16px">MIDTS Step 2 ready for review</h2>',
       '<p><strong>Lead ID:</strong> ' + escapeHtml(leadResult.leadId) + '<br>',
-      '<strong>Lifecycle Status:</strong> ' + escapeHtml(leadResult.lifecycleStatus || 'New Lead') + '<br>',
+      '<strong>Lifecycle Status:</strong> ' + escapeHtml(leadResult.lifecycleStatus || 'Pending Review') + '<br>',
       '<strong>Review Status:</strong> ' + escapeHtml(leadResult.reviewStatus || 'Pending Review') + '<br>',
-      '<strong>Next Action:</strong> ' + escapeHtml(leadResult.nextAction || 'Review lead') + '</p>',
+      '<strong>Next Action:</strong> ' + escapeHtml(leadResult.nextAction || 'Review technical requirement') + '</p>',
       '<p><strong>Client:</strong> ' + escapeHtml(lead.fullName || '') + '<br>',
       '<strong>Email:</strong> ' + escapeHtml(lead.email || '') + '<br>',
       '<strong>Company:</strong> ' + escapeHtml(lead.company || '') + '<br>',
@@ -366,13 +365,20 @@ var MidtsEmailService = (function () {
     };
   }
 
+  function buildStep2Url_(leadId, submissionId) {
+    var baseUrl = MidtsConfig.getScriptProperty('STEP2_FORM_URL') || MidtsConfig.getScriptProperty('STEP2_FORM_BASE_URL');
+    if (!baseUrl) return '';
+    var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
+    return baseUrl + separator + 'leadId=' + encodeURIComponent(leadId || '') + '&submissionId=' + encodeURIComponent(submissionId || '');
+  }
+
   function paragraphHtml_(lines) {
     var html = ['<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:640px">'];
     var paragraph = [];
     lines.forEach(function (line) {
       if (line === '') {
         if (paragraph.length) {
-          html.push('<p>' + paragraph.map(escapeHtml).join('<br>') + '</p>');
+          html.push('<p>' + paragraph.map(linkifyAndEscape_).join('<br>') + '</p>');
           paragraph = [];
         }
       } else {
@@ -380,10 +386,19 @@ var MidtsEmailService = (function () {
       }
     });
     if (paragraph.length) {
-      html.push('<p>' + paragraph.map(escapeHtml).join('<br>') + '</p>');
+      html.push('<p>' + paragraph.map(linkifyAndEscape_).join('<br>') + '</p>');
     }
     html.push('</div>');
     return html.join('');
+  }
+
+  function linkifyAndEscape_(value) {
+    var text = String(value || '');
+    if (text.indexOf('Step 2 link: http') === 0) {
+      var url = text.replace('Step 2 link: ', '');
+      return 'Step 2 link: <a href="' + escapeHtml(url) + '">' + escapeHtml(url) + '</a>';
+    }
+    return escapeHtml(text);
   }
 
   function escapeHtml(value) {
