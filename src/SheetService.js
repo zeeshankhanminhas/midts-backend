@@ -250,35 +250,55 @@ var MidtsSheetService = (function () {
     return findVendorPricingByColumnValue_('Lead ID', leadId);
   }
 
+  function findLatestVendorPricingByLeadId(leadId) {
+    var rows = findVendorPricingRowsByColumnValue_('Lead ID', leadId);
+    if (!rows.length) return null;
+
+    var latest = rows.filter(function (row) {
+      return String(row.pricing['Latest Revision'] || '').trim().toLowerCase() === 'yes';
+    })[0];
+    if (latest) return latest;
+
+    return rows.sort(function (a, b) {
+      return Number(b.pricing['Quote Revision'] || 0) - Number(a.pricing['Quote Revision'] || 0);
+    })[0];
+  }
+
   function findVendorPricingByPricingId(pricingId) {
     return findVendorPricingByColumnValue_('Pricing ID', pricingId);
   }
 
   function findVendorPricingByColumnValue_(columnName, value) {
+    var rows = findVendorPricingRowsByColumnValue_(columnName, value);
+    return rows.length ? rows[0] : null;
+  }
+
+  function findVendorPricingRowsByColumnValue_(columnName, value) {
     var sheet = getVendorPricingSheet();
     var headerMap = getHeaderMap(sheet);
     var targetColumn = headerMap[columnName];
     if (!targetColumn) throw new Error(columnName + ' column missing.');
 
     var lastRow = sheet.getLastRow();
-    if (lastRow < 2) return null;
+    if (lastRow < 2) return [];
 
+    var matches = [];
     var values = sheet.getRange(2, targetColumn, lastRow - 1, 1).getValues();
     for (var i = 0; i < values.length; i += 1) {
       if (String(values[i][0]) === String(value)) {
         var rowNumber = i + 2;
         var rowValues = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
-        return {
+        matches.push({
           sheet: sheet,
           rowNumber: rowNumber,
           headerMap: headerMap,
           rowValues: rowValues,
           pricing: rowToObject_(rowValues, headerMap)
-        };
+        });
       }
     }
 
-    return null;
+    return matches;
   }
 
   function updateLeadById(leadId, updates) {
@@ -346,6 +366,7 @@ var MidtsSheetService = (function () {
     findLeadById: findLeadById,
     findLeadBySubmissionId: findLeadBySubmissionId,
     findVendorPricingByLeadId: findVendorPricingByLeadId,
+    findLatestVendorPricingByLeadId: findLatestVendorPricingByLeadId,
     findVendorPricingByPricingId: findVendorPricingByPricingId,
     updateLeadById: updateLeadById,
     updateVendorPricingByPricingId: updateVendorPricingByPricingId,
