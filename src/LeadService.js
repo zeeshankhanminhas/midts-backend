@@ -46,9 +46,10 @@ var MidtsLeadService = (function () {
     }
 
     var leadId = createLeadId();
+    var now = new Date();
     MidtsSheetService.appendLeadRow([
       leadId,
-      new Date(),
+      now,
       lead.submissionId,
       lead.fullName,
       lead.email,
@@ -58,14 +59,46 @@ var MidtsLeadService = (function () {
       lead.source,
       lead.pageUrl,
       'New',
-      MidtsLogger.safeJson(lead.rawPayload)
+      MidtsLogger.safeJson(lead.rawPayload),
+      'New Lead',
+      'Pending Review',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'Review lead',
+      nextBusinessDate_(1),
+      'No',
+      'No',
+      '',
+      getDocumentLink_('CAPABILITY_STATEMENT_URL'),
+      'No',
+      '',
+      '',
+      getDocumentLink_('QUOTE_TEMPLATE_URL'),
+      '',
+      '',
+      '',
+      '',
+      0,
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      now
     ]);
 
     return {
       ok: true,
       leadId: leadId,
       submissionId: lead.submissionId,
-      lead: lead
+      lead: lead,
+      lifecycleStatus: 'New Lead',
+      reviewStatus: 'Pending Review',
+      nextAction: 'Review lead'
     };
   }
 
@@ -73,6 +106,16 @@ var MidtsLeadService = (function () {
     var timestamp = Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss');
     var suffix = Math.floor(Math.random() * 9000) + 1000;
     return 'MIDTS-' + timestamp + '-' + suffix;
+  }
+
+  function nextBusinessDate_(daysFromNow) {
+    var date = new Date();
+    date.setDate(date.getDate() + daysFromNow);
+    return date;
+  }
+
+  function getDocumentLink_(propertyName) {
+    return MidtsConfig.getScriptProperty(propertyName);
   }
 
   return {
