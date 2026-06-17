@@ -34,6 +34,31 @@ var MidtsWebhookRouter = (function () {
         return MidtsResponseService.failure(leadResult.code, leadResult.message, { requestId: requestId });
       }
 
+      if (leadResult.duplicate) {
+        MidtsLogger.logWebhookAttempt({
+          requestId: requestId,
+          outcome: 'duplicate',
+          message: 'Duplicate submission ignored; existing lead returned',
+          payload: scrubPayload(payload),
+          submissionId: leadResult.submissionId,
+          email: leadResult.lead.email,
+          source: leadResult.lead.source
+        });
+
+        return MidtsResponseService.success({
+          requestId: requestId,
+          leadId: leadResult.leadId,
+          submissionId: leadResult.submissionId,
+          duplicate: true,
+          lifecycleStatus: leadResult.lifecycleStatus,
+          reviewStatus: leadResult.reviewStatus,
+          nextAction: leadResult.nextAction,
+          emailStatus: 'skipped',
+          internalNotificationStatus: 'skipped',
+          message: 'Duplicate submission ignored; existing lead returned.'
+        });
+      }
+
       var emailResult = MidtsEmailService.sendLeadAcknowledgement(leadResult);
       var internalNotificationResult = MidtsEmailService.sendInternalReviewNotification(leadResult);
       var webhookMessage = buildSuccessMessage_(emailResult, internalNotificationResult);
@@ -52,6 +77,7 @@ var MidtsWebhookRouter = (function () {
         requestId: requestId,
         leadId: leadResult.leadId,
         submissionId: leadResult.submissionId,
+        duplicate: false,
         lifecycleStatus: leadResult.lifecycleStatus,
         reviewStatus: leadResult.reviewStatus,
         nextAction: leadResult.nextAction,
