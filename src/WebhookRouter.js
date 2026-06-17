@@ -35,7 +35,8 @@ var MidtsWebhookRouter = (function () {
       }
 
       var emailResult = MidtsEmailService.sendLeadAcknowledgement(leadResult);
-      var webhookMessage = emailResult.ok ? 'Lead created and acknowledgement sent' : 'Lead created; acknowledgement email failed';
+      var internalNotificationResult = MidtsEmailService.sendInternalReviewNotification(leadResult);
+      var webhookMessage = buildSuccessMessage_(emailResult, internalNotificationResult);
 
       MidtsLogger.logWebhookAttempt({
         requestId: requestId,
@@ -51,7 +52,11 @@ var MidtsWebhookRouter = (function () {
         requestId: requestId,
         leadId: leadResult.leadId,
         submissionId: leadResult.submissionId,
+        lifecycleStatus: leadResult.lifecycleStatus,
+        reviewStatus: leadResult.reviewStatus,
+        nextAction: leadResult.nextAction,
         emailStatus: emailResult.status,
+        internalNotificationStatus: internalNotificationResult.status,
         message: webhookMessage
       });
     } catch (error) {
@@ -113,6 +118,19 @@ var MidtsWebhookRouter = (function () {
       if (clone[key]) clone[key] = '[redacted]';
     });
     return clone;
+  }
+
+  function buildSuccessMessage_(emailResult, internalNotificationResult) {
+    if (emailResult.ok && internalNotificationResult.ok) {
+      return 'Lead created, acknowledgement sent, internal review notified';
+    }
+    if (!emailResult.ok && !internalNotificationResult.ok) {
+      return 'Lead created; acknowledgement and internal notification failed';
+    }
+    if (!emailResult.ok) {
+      return 'Lead created; acknowledgement email failed; internal review notified';
+    }
+    return 'Lead created and acknowledgement sent; internal notification failed';
   }
 
   function createRequestId() {
