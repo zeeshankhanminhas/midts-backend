@@ -42,7 +42,20 @@ Pass condition:
 - Two `sent` rows appear in `Email Logs`: client acknowledgement and internal review notification.
 - Internal review email includes four decision links.
 
-## Test 4: Decision Link And Outcome Email
+## Test 4: Duplicate Submission Guard
+
+Submit the same payload twice with the same `Submission ID`.
+
+Pass condition:
+
+- Only one row exists in `Leads` for that `Submission ID`.
+- Second response returns `duplicate: true`.
+- Second response returns the existing `Lead ID`.
+- Second attempt writes `Webhook Logs -> outcome = duplicate`.
+- Second attempt does not send another acknowledgement email.
+- Second attempt does not send another internal review notification.
+
+## Test 5: Decision Link And Outcome Email
 
 Use a fresh lifecycle test lead for each decision.
 
@@ -70,7 +83,30 @@ Nurture -> Lifecycle Status = Nurture, Nurture Status = Scheduled, Next Nurture 
 Not Suitable -> Lifecycle Status = Closed, Final Outcome = Not Suitable, Closed At populated, client decline email sent
 ```
 
-## Test 5: Wrong Token
+## Test 6: Duplicate Decision Guard
+
+Click the same decision link again after it has already succeeded.
+
+Pass condition:
+
+- Browser shows `MIDTS decision already recorded`.
+- Lead row is not rerouted.
+- No second outcome email is sent.
+- `Webhook Logs` contains `outcome = decision_duplicate`.
+
+## Test 7: Conflicting Decision Guard
+
+After one decision has succeeded, click a different decision link for the same lead.
+
+Pass condition:
+
+- Browser shows `MIDTS decision blocked`.
+- Lead row keeps the original decision.
+- Lead row is not rerouted.
+- No second outcome email is sent.
+- `Webhook Logs` contains `outcome = decision_conflict`.
+
+## Test 8: Wrong Token
 
 Submit a request to the deployed `/exec` URL using an incorrect token.
 
@@ -83,7 +119,7 @@ Pass condition:
 - No acknowledgement email is sent.
 - No internal review notification is sent.
 
-## Test 6: Frontend Submission
+## Test 9: Frontend Submission
 
 Set frontend hosting variables:
 
@@ -104,3 +140,16 @@ Pass condition:
 - New lead has visible lifecycle and review status.
 - Clicking an internal review decision link routes the lead without manual sheet editing.
 - The decision route sends/logs the appropriate outcome email.
+
+## Freeze Rule
+
+Do not freeze the lifecycle stage unless these are true:
+
+```text
+One Submission ID -> One Lead
+One Lead -> One Human Decision
+One Decision -> One Outcome Email
+Repeated clicks do not resend emails
+Conflicting clicks are blocked
+Every guard writes a visible log
+```
