@@ -2,7 +2,8 @@ var MidtsSheetService = (function () {
   var SHEETS = {
     LEADS: 'Leads',
     WEBHOOK_LOGS: 'Webhook Logs',
-    EMAIL_LOGS: 'Email Logs'
+    EMAIL_LOGS: 'Email Logs',
+    VENDOR_PRICING: 'Vendor Pricing'
   };
 
   var LEAD_HEADERS = [
@@ -46,7 +47,9 @@ var MidtsSheetService = (function () {
     'Final Outcome',
     'Close Reason',
     'Closed At',
-    'Last Updated At'
+    'Last Updated At',
+    'Vendor Pricing Required',
+    'Vendor Pricing Status'
   ];
 
   var LOG_HEADERS = [
@@ -69,6 +72,30 @@ var MidtsSheetService = (function () {
     'Subject',
     'Status',
     'Message'
+  ];
+
+  var VENDOR_PRICING_HEADERS = [
+    'Pricing ID',
+    'Lead ID',
+    'Quote Reference',
+    'Created At',
+    'Vendor Name',
+    'Vendor Email',
+    'Vendor Cost',
+    'Vendor Currency',
+    'Margin Type',
+    'Margin Value',
+    'MIDTS Profit Amount',
+    'Client Quote Amount',
+    'Pricing Status',
+    'Pricing Approved',
+    'Pricing Approved By',
+    'Pricing Approved At',
+    'Quote Revision',
+    'Latest Revision',
+    'Revision Reason',
+    'Notes',
+    'Last Updated At'
   ];
 
   function getSpreadsheet() {
@@ -129,8 +156,16 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS).appendRow(row);
   }
 
+  function appendVendorPricingRow(row) {
+    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS).appendRow(row);
+  }
+
   function getLeadSheet() {
     return getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
+  }
+
+  function getVendorPricingSheet() {
+    return getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
   }
 
   function getHeaderMap(sheet) {
@@ -177,21 +212,67 @@ var MidtsSheetService = (function () {
     return null;
   }
 
+  function findVendorPricingByLeadId(leadId) {
+    return findVendorPricingByColumnValue_('Lead ID', leadId);
+  }
+
+  function findVendorPricingByPricingId(pricingId) {
+    return findVendorPricingByColumnValue_('Pricing ID', pricingId);
+  }
+
+  function findVendorPricingByColumnValue_(columnName, value) {
+    var sheet = getVendorPricingSheet();
+    var headerMap = getHeaderMap(sheet);
+    var targetColumn = headerMap[columnName];
+    if (!targetColumn) throw new Error(columnName + ' column missing.');
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    var values = sheet.getRange(2, targetColumn, lastRow - 1, 1).getValues();
+    for (var i = 0; i < values.length; i += 1) {
+      if (String(values[i][0]) === String(value)) {
+        var rowNumber = i + 2;
+        var rowValues = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+        return {
+          sheet: sheet,
+          rowNumber: rowNumber,
+          headerMap: headerMap,
+          rowValues: rowValues,
+          pricing: rowToObject_(rowValues, headerMap)
+        };
+      }
+    }
+
+    return null;
+  }
+
   function updateLeadById(leadId, updates) {
     var result = findLeadById(leadId);
     if (!result) {
       throw new Error('Lead not found: ' + leadId);
     }
+    updateRowByHeaders_(result.sheet, result.rowNumber, result.headerMap, updates);
+    return findLeadById(leadId);
+  }
 
+  function updateVendorPricingByPricingId(pricingId, updates) {
+    var result = findVendorPricingByPricingId(pricingId);
+    if (!result) {
+      throw new Error('Vendor pricing not found: ' + pricingId);
+    }
+    updateRowByHeaders_(result.sheet, result.rowNumber, result.headerMap, updates);
+    return findVendorPricingByPricingId(pricingId);
+  }
+
+  function updateRowByHeaders_(sheet, rowNumber, headerMap, updates) {
     Object.keys(updates).forEach(function (header) {
-      var column = result.headerMap[header];
+      var column = headerMap[header];
       if (!column) {
         throw new Error('Cannot update missing column: ' + header);
       }
-      result.sheet.getRange(result.rowNumber, column).setValue(updates[header]);
+      sheet.getRange(rowNumber, column).setValue(updates[header]);
     });
-
-    return findLeadById(leadId);
   }
 
   function rowToObject_(rowValues, headerMap) {
@@ -205,10 +286,12 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
+    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     return {
       leadsSheet: SHEETS.LEADS,
       logsSheet: SHEETS.WEBHOOK_LOGS,
-      emailLogsSheet: SHEETS.EMAIL_LOGS
+      emailLogsSheet: SHEETS.EMAIL_LOGS,
+      vendorPricingSheet: SHEETS.VENDOR_PRICING
     };
   }
 
@@ -217,12 +300,17 @@ var MidtsSheetService = (function () {
     LEAD_HEADERS: LEAD_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
     EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
+    VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
     appendLeadRow: appendLeadRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
+    appendVendorPricingRow: appendVendorPricingRow,
     findLeadById: findLeadById,
     findLeadBySubmissionId: findLeadBySubmissionId,
+    findVendorPricingByLeadId: findVendorPricingByLeadId,
+    findVendorPricingByPricingId: findVendorPricingByPricingId,
     updateLeadById: updateLeadById,
+    updateVendorPricingByPricingId: updateVendorPricingByPricingId,
     ensureLaunchSheets: ensureLaunchSheets
   };
 })();
