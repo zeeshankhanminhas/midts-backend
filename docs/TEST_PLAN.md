@@ -25,27 +25,7 @@ Pass condition:
 - `Email Logs` exists.
 - `Leads` includes lifecycle, review, document, quote, nurture, and closure columns.
 
-## Test 3: Acknowledgement Email
-
-Run `testAcknowledgementEmail()`.
-
-Pass condition:
-
-- Apps Script asks for email permission if not already approved.
-- `TEST_EMAIL`, `INTAKE_EMAIL`, or `intake@midts.com` receives the test email.
-- A `sent` row appears in `Email Logs`.
-
-## Test 4: Internal Review Notification
-
-Run `testInternalReviewNotification()`.
-
-Pass condition:
-
-- `INTAKE_EMAIL` receives the internal review email, or `intake@midts.com` receives it if no property is set.
-- Email contains four decision links: `Qualified`, `Needs More Info`, `Nurture`, `Not Suitable`.
-- A `sent` row appears in `Email Logs`.
-
-## Test 5: Lifecycle Intake Test
+## Test 3: Lifecycle Intake Test
 
 Run `testLifecycleIntakeWithSamplePost()`.
 
@@ -62,15 +42,16 @@ Pass condition:
 - Two `sent` rows appear in `Email Logs`: client acknowledgement and internal review notification.
 - Internal review email includes four decision links.
 
-## Test 6: Decision Link Test
+## Test 4: Decision Link And Outcome Email
 
-Use the latest lifecycle test lead.
+Use a fresh lifecycle test lead for each decision.
 
 Click one internal review decision link.
 
 Pass condition:
 
 - Browser shows `MIDTS lead decision recorded`.
+- Browser message includes `Outcome email: sent`.
 - The matching lead row updates automatically.
 - `Qualification Decision` matches the clicked decision.
 - `Human Approval` is `Approved`.
@@ -78,17 +59,18 @@ Pass condition:
 - `Decision Timestamp` is populated.
 - `Next Action` matches the decision route.
 - `Webhook Logs` contains `Decision recorded`.
+- `Email Logs` contains the correct outcome email row.
 
 Decision-specific pass conditions:
 
 ```text
-Qualified -> Lifecycle Status = Quote Path, Quote Required = Yes, Quote Status = Draft Needed
-Needs More Info -> Lifecycle Status = Info Required, Info Request Status = Required
-Nurture -> Lifecycle Status = Nurture, Nurture Status = Scheduled, Next Nurture Date populated
-Not Suitable -> Lifecycle Status = Closed, Final Outcome = Not Suitable, Closed At populated
+Qualified -> Lifecycle Status = Quote Path, Quote Required = Yes, Quote Status = Draft Needed, internal quote prep email sent
+Needs More Info -> Lifecycle Status = Info Required, Info Request Status = Required, client info request email sent
+Nurture -> Lifecycle Status = Nurture, Nurture Status = Scheduled, Next Nurture Date populated, client nurture email sent
+Not Suitable -> Lifecycle Status = Closed, Final Outcome = Not Suitable, Closed At populated, client decline email sent
 ```
 
-## Test 7: Wrong Token
+## Test 5: Wrong Token
 
 Submit a request to the deployed `/exec` URL using an incorrect token.
 
@@ -101,7 +83,7 @@ Pass condition:
 - No acknowledgement email is sent.
 - No internal review notification is sent.
 
-## Test 8: Frontend Submission
+## Test 6: Frontend Submission
 
 Set frontend hosting variables:
 
@@ -121,3 +103,4 @@ Pass condition:
 - Internal review notification appears in `Email Logs` with status `sent`.
 - New lead has visible lifecycle and review status.
 - Clicking an internal review decision link routes the lead without manual sheet editing.
+- The decision route sends/logs the appropriate outcome email.
