@@ -17,7 +17,7 @@ var MidtsDecisionService = (function () {
       var result = applyDecision(params.leadId, params.decision, params.reviewer || 'Email Approval');
       return htmlResponse_(
         'MIDTS lead decision recorded',
-        'Lead ' + result.leadId + ' has been routed as ' + result.decisionLabel + '. Next action: ' + result.nextAction + '.'
+        'Lead ' + result.leadId + ' has been routed as ' + result.decisionLabel + '. Next action: ' + result.nextAction + '. Outcome email: ' + result.outcomeEmailStatus + '.'
       );
     } catch (error) {
       return htmlResponse_('MIDTS decision failed', String(error && error.message ? error.message : error));
@@ -39,15 +39,24 @@ var MidtsDecisionService = (function () {
     var now = new Date();
     var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now);
     var updatedLead = MidtsSheetService.updateLeadById(leadId, updates);
+    var outcomeEmailResult = MidtsEmailService.sendDecisionOutcomeEmail({
+      leadId: leadId,
+      decision: normalizedDecision,
+      decisionLabel: decisionLabel,
+      nextAction: updates['Next Action'],
+      updates: updates,
+      lead: updatedLead.lead
+    });
 
     MidtsLogger.logWebhookAttempt({
       requestId: 'DECISION-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
       outcome: 'decision',
-      message: 'Decision recorded: ' + decisionLabel,
+      message: 'Decision recorded: ' + decisionLabel + '; outcome email: ' + outcomeEmailResult.status,
       payload: {
         leadId: leadId,
         decision: decisionLabel,
-        reviewer: reviewer || 'Email Approval'
+        reviewer: reviewer || 'Email Approval',
+        outcomeEmailStatus: outcomeEmailResult.status
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
       email: updatedLead.lead['Email'] || '',
@@ -60,6 +69,7 @@ var MidtsDecisionService = (function () {
       decision: normalizedDecision,
       decisionLabel: decisionLabel,
       nextAction: updates['Next Action'],
+      outcomeEmailStatus: outcomeEmailResult.status,
       updates: updates
     };
   }
