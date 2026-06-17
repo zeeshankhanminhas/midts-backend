@@ -147,51 +147,57 @@ var MidtsSheetService = (function () {
     return sheet;
   }
 
-  function ensureHeaders(sheet, headers) {
-    var existingWidth = Math.max(sheet.getLastColumn(), headers.length);
-    var current = sheet.getRange(1, 1, 1, existingWidth).getValues()[0];
-    var populatedHeaders = current.filter(function (header) {
-      return String(header || '').trim() !== '';
-    });
-    var needsHeaders = populatedHeaders.length === 0;
-
-    if (needsHeaders) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  function ensureHeaders(sheet, expectedHeaders) {
+    if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
+      sheet.getRange(1, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
       sheet.setFrozenRows(1);
       return;
     }
 
-    for (var i = 0; i < populatedHeaders.length; i += 1) {
-      if (headers[i] !== populatedHeaders[i]) {
-        throw new Error('Sheet header mismatch on ' + sheet.getName() + '. Expected launch schema before writing.');
-      }
+    var headerMap = getHeaderMap(sheet);
+    var missingHeaders = expectedHeaders.filter(function (header) {
+      return !headerMap[header];
+    });
+
+    if (missingHeaders.length) {
+      var startColumn = sheet.getLastColumn() + 1;
+      sheet.getRange(1, startColumn, 1, missingHeaders.length).setValues([missingHeaders]);
     }
 
-    if (populatedHeaders.length < headers.length) {
-      var missingHeaders = headers.slice(populatedHeaders.length);
-      sheet.getRange(1, populatedHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
-      sheet.setFrozenRows(1);
-    }
+    sheet.setFrozenRows(1);
   }
 
   function appendLeadRow(row) {
-    getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS).appendRow(row);
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS), LEAD_HEADERS, row);
   }
 
   function appendTechnicalIntakeRow(row) {
-    getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS).appendRow(row);
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS), TECHNICAL_INTAKE_HEADERS, row);
   }
 
   function appendVendorPricingRow(row) {
-    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS).appendRow(row);
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS), VENDOR_PRICING_HEADERS, row);
   }
 
   function appendWebhookLog(row) {
-    getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS).appendRow(row);
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS), LOG_HEADERS, row);
   }
 
   function appendEmailLog(row) {
-    getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS).appendRow(row);
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS), EMAIL_LOG_HEADERS, row);
+  }
+
+  function appendRowByHeaders_(sheet, expectedHeaders, sourceRow) {
+    ensureHeaders(sheet, expectedHeaders);
+    var headerMap = getHeaderMap(sheet);
+    var row = createBlankRow_(sheet.getLastColumn());
+
+    expectedHeaders.forEach(function (header, index) {
+      var column = headerMap[header];
+      if (column) row[column - 1] = sourceRow[index] === undefined ? '' : sourceRow[index];
+    });
+
+    sheet.appendRow(row);
   }
 
   function getLeadSheet() {
@@ -203,9 +209,11 @@ var MidtsSheetService = (function () {
   }
 
   function getHeaderMap(sheet) {
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var lastColumn = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
     return headers.reduce(function (map, header, index) {
-      if (header) map[String(header)] = index + 1;
+      var normalized = String(header || '').trim();
+      if (normalized && !map[normalized]) map[normalized] = index + 1;
       return map;
     }, {});
   }
@@ -334,6 +342,12 @@ var MidtsSheetService = (function () {
       obj[header] = rowValues[headerMap[header] - 1];
       return obj;
     }, {});
+  }
+
+  function createBlankRow_(length) {
+    var row = [];
+    for (var i = 0; i < length; i += 1) row.push('');
+    return row;
   }
 
   function ensureLaunchSheets() {
