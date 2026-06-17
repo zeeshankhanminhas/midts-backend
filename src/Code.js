@@ -35,7 +35,8 @@ function testWebsiteWebhookWithSampleLead() {
 }
 
 function testWebhookRouterWithSamplePost() {
-  return postSampleStep1_('router-sample-', 'Router Sample Client').getContent();
+  var submissionId = 'router-sample-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss');
+  return postSampleStep1_(submissionId, 'Router Sample Client').getContent();
 }
 
 function testAcknowledgementEmail() {
@@ -85,7 +86,8 @@ function testInternalReviewNotification() {
 }
 
 function testStep1WithSamplePost() {
-  return postSampleStep1_('step1-sample-', 'Step 1 Sample Client').getContent();
+  var submissionId = 'step1-sample-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss');
+  return postSampleStep1_(submissionId, 'Step 1 Sample Client').getContent();
 }
 
 function testStep2WithSamplePost() {
