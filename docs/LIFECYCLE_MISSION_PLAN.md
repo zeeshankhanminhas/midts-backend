@@ -17,7 +17,7 @@ Automation moves the lead. Human approval happens by email decision link. The Sh
 - Decision links
 - Outcome routing
 - Logs
-- Document status tracking fields
+- Commercial status gates
 
 `NEW-MIDTS` owns:
 
@@ -29,17 +29,35 @@ Automation moves the lead. Human approval happens by email decision link. The Sh
 
 Apps Script is a deployment target only.
 
-## Lifecycle
+## Sheet Tabs
+
+The launch sheet should stay operationally clean with five tabs:
+
+```text
+Leads
+Technical Intake
+Vendor Pricing
+Webhook Logs
+Email Logs
+```
+
+`Leads` is the one-row summary. Detail belongs in the relevant detail tab, not in endless extra lead columns.
+
+## Commercial Lifecycle
 
 ```text
 Website Enquiry
--> Lead Logged
--> Client Acknowledged
+-> Step 1 Lead Logged
+-> Client Acknowledged With Step 2 Link
+-> Step 2 Technical Intake Completed
 -> Internal Review Email
 -> Human Clicks Decision Link
 -> Outcome Path Applied
--> Document Action
--> Follow-up / Quote / Nurture / Close
+-> Vendor Safe Package if required
+-> Vendor Pricing
+-> Margin Approval
+-> Quote Preparation
+-> Follow-up / Nurture / Close
 -> Final Status
 ```
 
@@ -56,31 +74,44 @@ Not Suitable
 
 Automation must not guess these decisions.
 
-## Stage 1: Lead Intake
+## Stage 1: Website Lead Intake
 
 Creates:
 
 - Lead row
 - Webhook log
 - Initial lifecycle state
+- Client acknowledgement email
 
 Initial state:
 
 ```text
-Status = New
-Lifecycle Status = New Lead
-Review Status = Pending Review
-Next Action = Review lead
+Status = Awaiting Step 2
+Lifecycle Status = Awaiting Step 2
+Review Status = Not Ready
+Next Action = Client to complete Step 2
 ```
 
-## Stage 2: Client Acknowledgement
+No internal decision email is sent at this stage.
 
-Sends a receipt email to the client.
+## Stage 2: Client Technical Intake
 
-Logs:
+The client completes Step 2 with project details, files/confidentiality flags, timing, and technical requirement notes.
+
+Creates:
+
+- Technical Intake row
+- Updated Lead lifecycle summary
+- Webhook log
+- Internal review email
+
+Updated state:
 
 ```text
-Email Logs -> sent / failed / skipped
+Status = Step 2 Completed
+Lifecycle Status = Pending Review
+Review Status = Pending Review
+Next Action = Review technical requirement
 ```
 
 ## Stage 3: Internal Review Notification
@@ -93,6 +124,7 @@ Sends MIDTS an internal review email containing:
 - Company
 - Project type
 - Brief
+- Step 2 context
 - Four decision links
 
 Decision links:
@@ -124,12 +156,14 @@ Last Updated At
 
 No manual Sheet update is required for the decision.
 
+Duplicate and conflicting decision clicks are blocked and logged.
+
 ## Stage 5: Outcome Routing
 
 After the decision link:
 
 ```text
-Qualified -> Quote Path
+Qualified -> Vendor Safe Review or Vendor Pricing
 Needs More Info -> Info Required
 Nurture -> Nurture Scheduled
 Not Suitable -> Closed
@@ -138,15 +172,40 @@ Not Suitable -> Closed
 Current first-pass routing:
 
 ```text
-Qualified -> Quote Required = Yes, Quote Status = Draft Needed, Next Action = Prepare quote
+Qualified with vendor-safe package required -> Quote Status = Waiting Vendor Safe Package, Next Action = Prepare vendor-safe package
+Qualified without vendor-safe blocker -> Quote Status = Waiting Vendor Price, Vendor Pricing Status = Contact Vendor, Next Action = Contact vendor
 Needs More Info -> Info Request Status = Required, Next Action = Send info request
 Nurture -> Nurture Status = Scheduled, Next Nurture Date = +7 days, Next Action = Nurture follow-up
 Not Suitable -> Final Outcome = Not Suitable, Closed At = now, Next Action = None
 ```
 
-## Stage 6: Document Suite Use
+## Stage 6: Vendor Pricing And Margin
 
-Existing documents are tracked, not moved into this repo.
+Vendor pricing must happen before a commercial quote is issued.
+
+Tracked in `Vendor Pricing`:
+
+```text
+Vendor Cost
+Vendor Currency
+Margin Type
+Margin Value
+MIDTS Profit Amount
+Client Quote Amount
+Pricing Status
+Pricing Approved
+Pricing Approved By
+Pricing Approved At
+Quote Revision
+Latest Revision
+Revision Reason
+```
+
+Margin can be changed during negotiation, but it must be versioned and approved. Open quotes should not be silently overwritten.
+
+## Stage 7: Document Suite Use
+
+Existing documents remain in `NEW-MIDTS` and are tracked by status only in the backend.
 
 Tracked fields:
 
@@ -162,7 +221,14 @@ Quote Document Link
 Quote Sent At
 ```
 
-## Stage 7: Nurture Cycle
+The launch-critical documents are:
+
+```text
+Capability Statement
+Quote
+```
+
+## Stage 8: Nurture Cycle
 
 Minimum nurture tracking:
 
@@ -176,7 +242,7 @@ Last Nurture Email Sent At
 
 No complex drip campaign until one lifecycle passes.
 
-## Stage 8: Closure
+## Stage 9: Closure
 
 No lead should be left unclear.
 
@@ -193,12 +259,16 @@ Last Updated At
 
 One test lead must prove:
 
-- Lead row created
-- Webhook success logged
-- Client acknowledgement sent
-- Internal review notification sent
-- Email Logs contains both sent entries
+- Step 1 lead row created
+- Step 1 webhook success logged
+- Client acknowledgement sent with Step 2 instruction/link
+- Step 2 technical intake row created
+- Step 2 webhook success logged
+- Internal review notification sent only after Step 2
+- Email Logs contains client and internal sent entries
 - Internal email contains four decision links
 - Clicking one decision link updates the lead row
-- Decision is logged
+- Duplicate/conflicting decision protection still works
+- Qualified lead does not jump straight to quote
+- Qualified lead lands in vendor-safe review or vendor pricing
 - Lead has a next action or final outcome
