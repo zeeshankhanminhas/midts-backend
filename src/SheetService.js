@@ -1,9 +1,10 @@
 var MidtsSheetService = (function () {
   var SHEETS = {
     LEADS: 'Leads',
+    TECHNICAL_INTAKE: 'Technical Intake',
+    VENDOR_PRICING: 'Vendor Pricing',
     WEBHOOK_LOGS: 'Webhook Logs',
-    EMAIL_LOGS: 'Email Logs',
-    VENDOR_PRICING: 'Vendor Pricing'
+    EMAIL_LOGS: 'Email Logs'
   };
 
   var LEAD_HEADERS = [
@@ -48,30 +49,37 @@ var MidtsSheetService = (function () {
     'Close Reason',
     'Closed At',
     'Last Updated At',
+    'Step 2 Status',
+    'Step 2 Completed At',
+    'Files Provided',
+    'NDA Required',
+    'Vendor Safe Package Required',
+    'Vendor Safe Package Ready',
+    'Drive Folder Status',
     'Vendor Pricing Required',
     'Vendor Pricing Status'
   ];
 
-  var LOG_HEADERS = [
-    'Logged At',
-    'Request ID',
-    'Outcome',
-    'Message',
-    'Submission ID',
-    'Email',
-    'Source',
-    'Payload JSON'
-  ];
-
-  var EMAIL_LOG_HEADERS = [
-    'Logged At',
+  var TECHNICAL_INTAKE_HEADERS = [
+    'Technical Intake ID',
     'Lead ID',
     'Submission ID',
-    'Recipient Email',
-    'Internal Copy Email',
-    'Subject',
-    'Status',
-    'Message'
+    'Completed At',
+    'Service Type',
+    'Technical Scope',
+    'Materials',
+    'Quantity',
+    'Deadline',
+    'Files Provided',
+    'File Links',
+    'NDA Required',
+    'Confidentiality Notes',
+    'Vendor Safe Package Required',
+    'Vendor Safe Package Ready',
+    'Budget Range',
+    'Timing Notes',
+    'Technical Notes',
+    'Raw Payload JSON'
   ];
 
   var VENDOR_PRICING_HEADERS = [
@@ -96,6 +104,28 @@ var MidtsSheetService = (function () {
     'Revision Reason',
     'Notes',
     'Last Updated At'
+  ];
+
+  var LOG_HEADERS = [
+    'Logged At',
+    'Request ID',
+    'Outcome',
+    'Message',
+    'Submission ID',
+    'Email',
+    'Source',
+    'Payload JSON'
+  ];
+
+  var EMAIL_LOG_HEADERS = [
+    'Logged At',
+    'Lead ID',
+    'Submission ID',
+    'Recipient Email',
+    'Internal Copy Email',
+    'Subject',
+    'Status',
+    'Message'
   ];
 
   function getSpreadsheet() {
@@ -148,16 +178,20 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS).appendRow(row);
   }
 
+  function appendTechnicalIntakeRow(row) {
+    getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS).appendRow(row);
+  }
+
+  function appendVendorPricingRow(row) {
+    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS).appendRow(row);
+  }
+
   function appendWebhookLog(row) {
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS).appendRow(row);
   }
 
   function appendEmailLog(row) {
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS).appendRow(row);
-  }
-
-  function appendVendorPricingRow(row) {
-    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS).appendRow(row);
   }
 
   function getLeadSheet() {
@@ -284,27 +318,31 @@ var MidtsSheetService = (function () {
 
   function ensureLaunchSheets() {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
+    getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
+    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
-    getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     return {
       leadsSheet: SHEETS.LEADS,
+      technicalIntakeSheet: SHEETS.TECHNICAL_INTAKE,
+      vendorPricingSheet: SHEETS.VENDOR_PRICING,
       logsSheet: SHEETS.WEBHOOK_LOGS,
-      emailLogsSheet: SHEETS.EMAIL_LOGS,
-      vendorPricingSheet: SHEETS.VENDOR_PRICING
+      emailLogsSheet: SHEETS.EMAIL_LOGS
     };
   }
 
   return {
     SHEETS: SHEETS,
     LEAD_HEADERS: LEAD_HEADERS,
+    TECHNICAL_INTAKE_HEADERS: TECHNICAL_INTAKE_HEADERS,
+    VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
     EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
-    VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
     appendLeadRow: appendLeadRow,
+    appendTechnicalIntakeRow: appendTechnicalIntakeRow,
+    appendVendorPricingRow: appendVendorPricingRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
-    appendVendorPricingRow: appendVendorPricingRow,
     findLeadById: findLeadById,
     findLeadBySubmissionId: findLeadBySubmissionId,
     findVendorPricingByLeadId: findVendorPricingByLeadId,
