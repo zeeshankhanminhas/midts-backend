@@ -4,19 +4,22 @@ Clean backend for MIDTS website enquiry capture and launch automation.
 
 ## Launch Scope
 
-The first launchable version does one controlled lifecycle well:
+The first launchable version does one controlled commercial lifecycle well:
 
 1. Receive website enquiry submissions from the MIDTS frontend.
 2. Validate the shared webhook token.
-3. Write a lead row into the Google Sheet.
+3. Write the Step 1 lead row into the Google Sheet.
 4. Record every attempt in a webhook log sheet.
-5. Send a client acknowledgement email.
-6. Send an internal review email with decision links.
-7. Record email attempts in an email log sheet.
-8. Route human-approved decisions without manual sheet editing.
-9. Return a clear success or failure response.
+5. Send a client acknowledgement email with the Step 2 technical intake link.
+6. Receive Step 2 technical intake submissions.
+7. Write Step 2 detail into the Technical Intake sheet.
+8. Send an internal review email with decision links only after Step 2 is complete.
+9. Route human-approved decisions without manual sheet editing.
+10. Move qualified leads into vendor-safe review or vendor pricing before any quote is prepared.
+11. Record email attempts in an email log sheet.
+12. Return a clear success or failure response.
 
-No vendor routing, document generation, dashboard, or Apps Script-only business logic is included until the lead lifecycle is proven.
+No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
 ## Source Of Truth
 
@@ -27,22 +30,38 @@ Apps Script is the deployment target only.
 ## Required Runtime
 
 - Google Apps Script V8 runtime
-- Google Sheet for lead storage
+- Google Sheet for operational storage
 - Script Properties for secrets/config
 - MailApp permission for acknowledgement/internal email
+
+## Required Google Sheet Tabs
+
+| Tab | Purpose |
+| --- | --- |
+| `Leads` | One-row lifecycle summary for each enquiry. |
+| `Technical Intake` | Step 2 technical/commercial qualification detail. |
+| `Vendor Pricing` | Vendor cost, margin, quote pricing, and revision tracking. |
+| `Webhook Logs` | Intake, decision, duplicate, and routing audit trail. |
+| `Email Logs` | Client/internal/outcome email audit trail. |
+
+Run `setupLaunchSheets` after pushing Apps Script changes to create any missing tabs and headers.
 
 ## Required Script Properties
 
 | Key | Purpose |
 | --- | --- |
-| `WEBSITE_WEBHOOK_TOKEN` | Shared secret expected from the website form payload. |
+| `WEBSITE_WEBHOOK_TOKEN` | Shared secret expected from website form payloads. |
 | `DECISION_TOKEN` | Shared secret used in internal review decision links. |
 | `WEB_APP_URL` | Current Apps Script Web App `/exec` URL used to build decision links. |
+| `STEP2_FORM_URL` | Optional. Full Step 2 form URL sent to the client. |
+| `STEP2_FORM_BASE_URL` | Optional fallback. Base Step 2 form URL; `leadId` and `submissionId` are appended. |
 | `SPREADSHEET_ID` | Optional. If omitted, the script uses the active spreadsheet. |
 | `INTAKE_EMAIL` | Optional. Internal notification address. Defaults to `intake@midts.com`. |
 | `TEST_EMAIL` | Optional. Recipient for Apps Script test emails. |
 | `CAPABILITY_STATEMENT_URL` | Optional. Existing frontend Capability Statement route. |
 | `QUOTE_TEMPLATE_URL` | Optional. Existing frontend Quote route. |
+
+At least one of `STEP2_FORM_URL` or `STEP2_FORM_BASE_URL` should exist before real client launch. If both are missing, the acknowledgement email asks the client to reply for help instead of giving a broken link.
 
 ## Public Endpoint
 
@@ -63,3 +82,21 @@ Needs More Info
 Nurture
 Not Suitable
 ```
+
+## Commercial Gate
+
+Qualified does not mean quote immediately.
+
+The current controlled order is:
+
+```text
+Step 1 Lead
+-> Step 2 Technical Intake
+-> Human Decision
+-> Vendor Safe Package if required
+-> Vendor Pricing
+-> Margin Approval
+-> Quote Preparation
+```
+
+If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
