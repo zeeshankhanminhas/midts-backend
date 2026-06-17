@@ -63,16 +63,16 @@ var MidtsLeadService = (function () {
       lead.briefRequirement,
       lead.source,
       lead.pageUrl,
-      'New',
+      'Awaiting Step 2',
       MidtsLogger.safeJson(lead.rawPayload),
-      'New Lead',
-      'Pending Review',
+      'Awaiting Step 2',
+      'Not Ready',
       '',
       '',
       '',
       '',
       '',
-      'Review lead',
+      'Client to complete Step 2',
       nextBusinessDate_(1),
       'No',
       'No',
@@ -93,7 +93,16 @@ var MidtsLeadService = (function () {
       '',
       '',
       '',
-      now
+      now,
+      'Awaiting',
+      '',
+      'No',
+      'No',
+      'No',
+      'No',
+      'Not Automated',
+      'No',
+      ''
     ]);
 
     return {
@@ -102,9 +111,9 @@ var MidtsLeadService = (function () {
       leadId: leadId,
       submissionId: lead.submissionId,
       lead: lead,
-      lifecycleStatus: 'New Lead',
-      reviewStatus: 'Pending Review',
-      nextAction: 'Review lead'
+      lifecycleStatus: 'Awaiting Step 2',
+      reviewStatus: 'Not Ready',
+      nextAction: 'Client to complete Step 2'
     };
   }
 
