@@ -16,8 +16,9 @@ The first launchable version does one controlled commercial lifecycle well:
 8. Send an internal review email with decision links only after Step 2 is complete.
 9. Route human-approved decisions without manual sheet editing.
 10. Move qualified leads into vendor-safe review or vendor pricing before any quote is prepared.
-11. Record email attempts in an email log sheet.
-12. Return a clear success or failure response.
+11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
+12. Record email attempts in an email log sheet.
+13. Return a clear success or failure response.
 
 No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
@@ -58,6 +59,8 @@ Run `setupLaunchSheets` after pushing Apps Script changes to create any missing 
 | `SPREADSHEET_ID` | Optional. If omitted, the script uses the active spreadsheet. |
 | `INTAKE_EMAIL` | Optional. Internal notification address. Defaults to `intake@midts.com`. |
 | `TEST_EMAIL` | Optional. Recipient for Apps Script test emails. |
+| `DEFAULT_MARGIN_TYPE` | Optional. `percentage` or `fixed`. Defaults to `percentage`. |
+| `DEFAULT_MARGIN_VALUE` | Optional. Default margin value. Defaults to `25`. |
 | `CAPABILITY_STATEMENT_URL` | Optional. Existing frontend Capability Statement route. |
 | `QUOTE_TEMPLATE_URL` | Optional. Existing frontend Quote route. |
 
@@ -100,3 +103,37 @@ Step 1 Lead
 ```
 
 If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
+
+Vendor pricing is an internal workflow service, not a public website webhook route. The public website token must not become a commercial control key.
+
+## Apps Script Test Order
+
+After `git pull` and `clasp push --force`, run:
+
+```text
+setupLaunchSheets
+```
+
+For a clean Step 1 and Step 2 rehearsal:
+
+```text
+testLifecycleIntakeWithSamplePost
+```
+
+Then set Script Property `TEST_LEAD_ID` to the new lead ID returned by that test and run:
+
+```text
+testDecisionQualified
+testVendorSafePackageReady
+testVendorPricingWithSamplePayload
+```
+
+Expected result:
+
+```text
+Step 1 -> Awaiting Step 2
+Step 2 -> Pending Review and internal review email sent
+Qualified -> Vendor Safe Review if NDA/vendor-safe is required
+Vendor Safe Ready -> Vendor Pricing
+Vendor Pricing -> Margin Review Required
+```
