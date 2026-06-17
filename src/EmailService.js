@@ -94,6 +94,156 @@ var MidtsEmailService = (function () {
     }
   }
 
+  function sendDecisionOutcomeEmail(decisionResult) {
+    var lead = sheetLeadToEmailLead_(decisionResult.lead || {});
+    var leadResult = {
+      leadId: decisionResult.leadId,
+      submissionId: lead.submissionId,
+      lead: lead
+    };
+    var intakeEmail = getIntakeEmail();
+    var email = buildDecisionOutcomeEmail_(decisionResult, lead, intakeEmail);
+
+    if (!email.to) {
+      logEmail(leadResult, '', email.internalCopyEmail || '', email.subject, 'skipped', 'No recipient for outcome email');
+      return { ok: false, status: 'skipped', message: 'No recipient for outcome email.' };
+    }
+
+    try {
+      MailApp.sendEmail({
+        to: email.to,
+        bcc: email.bcc || '',
+        replyTo: intakeEmail,
+        name: 'MIDTS',
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody
+      });
+
+      logEmail(leadResult, email.to, email.internalCopyEmail || '', email.subject, 'sent', email.logMessage);
+      return { ok: true, status: 'sent', message: email.logMessage };
+    } catch (error) {
+      var message = String(error && error.message ? error.message : error);
+      logEmail(leadResult, email.to, email.internalCopyEmail || '', email.subject, 'failed', message);
+      return { ok: false, status: 'failed', message: message };
+    }
+  }
+
+  function buildDecisionOutcomeEmail_(decisionResult, lead, intakeEmail) {
+    if (decisionResult.decision === 'qualified') {
+      return buildQualifiedInternalEmail_(decisionResult, lead, intakeEmail);
+    }
+    if (decisionResult.decision === 'needs-more-info') {
+      return buildNeedsMoreInfoEmail_(decisionResult, lead, intakeEmail);
+    }
+    if (decisionResult.decision === 'nurture') {
+      return buildNurtureEmail_(decisionResult, lead, intakeEmail);
+    }
+    return buildNotSuitableEmail_(decisionResult, lead, intakeEmail);
+  }
+
+  function buildQualifiedInternalEmail_(decisionResult, lead, intakeEmail) {
+    var subject = 'Quote preparation required - ' + decisionResult.leadId;
+    var lines = [
+      'A MIDTS lead has been qualified and needs quote preparation.',
+      '',
+      'Lead ID: ' + decisionResult.leadId,
+      'Quote Reference: ' + (decisionResult.updates['Quote Reference'] || ''),
+      'Client: ' + lead.fullName,
+      'Email: ' + lead.email,
+      'Company: ' + lead.company,
+      'Project Type: ' + lead.projectType,
+      '',
+      'Brief:',
+      lead.briefRequirement || 'No brief supplied',
+      '',
+      'Next Action: Prepare quote'
+    ];
+    return {
+      to: intakeEmail,
+      internalCopyEmail: '',
+      subject: subject,
+      body: lines.join('\n'),
+      htmlBody: paragraphHtml_(lines),
+      logMessage: 'Qualified outcome email sent internally'
+    };
+  }
+
+  function buildNeedsMoreInfoEmail_(decisionResult, lead, intakeEmail) {
+    var subject = 'More information needed for your MIDTS enquiry - ' + decisionResult.leadId;
+    var lines = [
+      'Hello ' + lead.fullName + ',',
+      '',
+      'Thank you for your enquiry. We have reviewed the initial requirement and need a little more information before confirming the best next step.',
+      '',
+      'Please reply to this email with any additional drawings, files, dimensions, material details, deadlines, or background information that would help us assess the work properly.',
+      '',
+      'Reference: ' + decisionResult.leadId,
+      '',
+      'MIDTS',
+      'intake@midts.com'
+    ];
+    return {
+      to: lead.email,
+      bcc: intakeEmail,
+      internalCopyEmail: intakeEmail,
+      subject: subject,
+      body: lines.join('\n'),
+      htmlBody: paragraphHtml_(lines),
+      logMessage: 'Needs More Info client email sent'
+    };
+  }
+
+  function buildNurtureEmail_(decisionResult, lead, intakeEmail) {
+    var subject = 'MIDTS enquiry follow-up - ' + decisionResult.leadId;
+    var lines = [
+      'Hello ' + lead.fullName + ',',
+      '',
+      'Thank you again for contacting MIDTS. We have reviewed your enquiry and will keep it on our follow-up list while the timing or requirement develops further.',
+      '',
+      'If anything changes, or if you have files or extra context to share, reply to this email and include the reference below.',
+      '',
+      'Reference: ' + decisionResult.leadId,
+      '',
+      'MIDTS',
+      'intake@midts.com'
+    ];
+    return {
+      to: lead.email,
+      bcc: intakeEmail,
+      internalCopyEmail: intakeEmail,
+      subject: subject,
+      body: lines.join('\n'),
+      htmlBody: paragraphHtml_(lines),
+      logMessage: 'Nurture client email sent'
+    };
+  }
+
+  function buildNotSuitableEmail_(decisionResult, lead, intakeEmail) {
+    var subject = 'MIDTS enquiry update - ' + decisionResult.leadId;
+    var lines = [
+      'Hello ' + lead.fullName + ',',
+      '',
+      'Thank you for contacting MIDTS. After reviewing the enquiry, we do not think we are the right fit for this requirement at this stage.',
+      '',
+      'We appreciate you getting in touch and wish you the best with the project.',
+      '',
+      'Reference: ' + decisionResult.leadId,
+      '',
+      'MIDTS',
+      'intake@midts.com'
+    ];
+    return {
+      to: lead.email,
+      bcc: intakeEmail,
+      internalCopyEmail: intakeEmail,
+      subject: subject,
+      body: lines.join('\n'),
+      htmlBody: paragraphHtml_(lines),
+      logMessage: 'Not Suitable client email sent'
+    };
+  }
+
   function logEmail(leadResult, recipientEmail, internalCopyEmail, subject, status, message) {
     var lead = leadResult && leadResult.lead;
     MidtsSheetService.appendEmailLog([
@@ -133,18 +283,22 @@ var MidtsEmailService = (function () {
   }
 
   function buildHtmlBody(lead, leadId) {
-    return [
-      '<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:640px">',
-      '<p>Hello ' + escapeHtml(lead.fullName) + ',</p>',
-      '<p>Thank you for contacting MIDTS. We have received your enquiry and will review the technical requirement before confirming the next step.</p>',
-      '<p><strong>Reference:</strong> ' + escapeHtml(leadId) + '<br>',
-      '<strong>Project type:</strong> ' + escapeHtml(lead.projectType || 'Not specified') + '</p>',
-      '<p><strong>Summary received:</strong></p>',
-      '<p>' + escapeHtml(lead.briefRequirement || 'No brief supplied').replace(/\n/g, '<br>') + '</p>',
-      '<p>If you need to add information or files, reply to this email and include the reference above.</p>',
-      '<p>MIDTS<br><a href="mailto:intake@midts.com">intake@midts.com</a></p>',
-      '</div>'
-    ].join('');
+    return paragraphHtml_([
+      'Hello ' + lead.fullName + ',',
+      '',
+      'Thank you for contacting MIDTS. We have received your enquiry and will review the technical requirement before confirming the next step.',
+      '',
+      'Reference: ' + leadId,
+      'Project type: ' + (lead.projectType || 'Not specified'),
+      '',
+      'Summary received:',
+      lead.briefRequirement || 'No brief supplied',
+      '',
+      'If you need to add information or files, reply to this email and include the reference above.',
+      '',
+      'MIDTS',
+      'intake@midts.com'
+    ]);
   }
 
   function buildInternalPlainTextBody(leadResult) {
@@ -200,6 +354,38 @@ var MidtsEmailService = (function () {
     return '<a href="' + escapeHtml(url) + '" style="display:inline-block;margin:4px 6px 4px 0;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none;font-size:14px">' + escapeHtml(label) + '</a>';
   }
 
+  function sheetLeadToEmailLead_(sheetLead) {
+    return {
+      submissionId: sheetLead['Submission ID'] || '',
+      fullName: sheetLead['Full Name'] || 'there',
+      email: sheetLead['Email'] || '',
+      company: sheetLead['Company'] || '',
+      projectType: sheetLead['Project Type'] || '',
+      briefRequirement: sheetLead['Brief Requirement'] || '',
+      source: sheetLead['Source'] || ''
+    };
+  }
+
+  function paragraphHtml_(lines) {
+    var html = ['<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:640px">'];
+    var paragraph = [];
+    lines.forEach(function (line) {
+      if (line === '') {
+        if (paragraph.length) {
+          html.push('<p>' + paragraph.map(escapeHtml).join('<br>') + '</p>');
+          paragraph = [];
+        }
+      } else {
+        paragraph.push(line);
+      }
+    });
+    if (paragraph.length) {
+      html.push('<p>' + paragraph.map(escapeHtml).join('<br>') + '</p>');
+    }
+    html.push('</div>');
+    return html.join('');
+  }
+
   function escapeHtml(value) {
     return String(value || '')
       .replace(/&/g, '&amp;')
@@ -212,6 +398,7 @@ var MidtsEmailService = (function () {
   return {
     sendLeadAcknowledgement: sendLeadAcknowledgement,
     sendInternalReviewNotification: sendInternalReviewNotification,
+    sendDecisionOutcomeEmail: sendDecisionOutcomeEmail,
     buildPlainTextBody: buildPlainTextBody,
     buildHtmlBody: buildHtmlBody
   };
