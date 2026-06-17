@@ -195,7 +195,7 @@ var MidtsVendorPricingService = (function () {
   }
 
   function nextRevisionForLead_(leadId) {
-    var existing = MidtsSheetService.findVendorPricingByLeadId(leadId);
+    var existing = MidtsSheetService.findLatestVendorPricingByLeadId(leadId);
     if (!existing) return 1;
 
     var previousRevision = Number(existing.pricing['Quote Revision'] || 1);
