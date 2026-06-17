@@ -129,6 +129,69 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS).appendRow(row);
   }
 
+  function getLeadSheet() {
+    return getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
+  }
+
+  function getHeaderMap(sheet) {
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    return headers.reduce(function (map, header, index) {
+      if (header) map[String(header)] = index + 1;
+      return map;
+    }, {});
+  }
+
+  function findLeadById(leadId) {
+    var sheet = getLeadSheet();
+    var headerMap = getHeaderMap(sheet);
+    var leadIdColumn = headerMap['Lead ID'];
+    if (!leadIdColumn) throw new Error('Lead ID column missing.');
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    var values = sheet.getRange(2, leadIdColumn, lastRow - 1, 1).getValues();
+    for (var i = 0; i < values.length; i += 1) {
+      if (String(values[i][0]) === String(leadId)) {
+        var rowNumber = i + 2;
+        var rowValues = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
+        return {
+          sheet: sheet,
+          rowNumber: rowNumber,
+          headerMap: headerMap,
+          rowValues: rowValues,
+          lead: rowToObject_(rowValues, headerMap)
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function updateLeadById(leadId, updates) {
+    var result = findLeadById(leadId);
+    if (!result) {
+      throw new Error('Lead not found: ' + leadId);
+    }
+
+    Object.keys(updates).forEach(function (header) {
+      var column = result.headerMap[header];
+      if (!column) {
+        throw new Error('Cannot update missing column: ' + header);
+      }
+      result.sheet.getRange(result.rowNumber, column).setValue(updates[header]);
+    });
+
+    return findLeadById(leadId);
+  }
+
+  function rowToObject_(rowValues, headerMap) {
+    return Object.keys(headerMap).reduce(function (obj, header) {
+      obj[header] = rowValues[headerMap[header] - 1];
+      return obj;
+    }, {});
+  }
+
   function ensureLaunchSheets() {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
@@ -148,6 +211,8 @@ var MidtsSheetService = (function () {
     appendLeadRow: appendLeadRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
+    findLeadById: findLeadById,
+    updateLeadById: updateLeadById,
     ensureLaunchSheets: ensureLaunchSheets
   };
 })();
