@@ -1,4 +1,55 @@
 var MidtsVendorPricingService = (function () {
+  function markVendorSafePackageReady(leadId, reviewer) {
+    if (!leadId) {
+      return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required.' };
+    }
+
+    var existingLead = MidtsSheetService.findLeadById(leadId);
+    if (!existingLead) {
+      return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
+    }
+
+    if (!isYes_(existingLead.lead['Vendor Safe Package Required'])) {
+      return { ok: false, code: 'VENDOR_SAFE_PACKAGE_NOT_REQUIRED', message: 'Vendor-safe package is not required for this lead.' };
+    }
+
+    var now = new Date();
+    var updatedLead = MidtsSheetService.updateLeadById(leadId, {
+      'Lifecycle Status': 'Vendor Pricing',
+      'Next Action': 'Contact vendor',
+      'Next Action Due': now,
+      'Quote Status': 'Waiting Vendor Price',
+      'Vendor Safe Package Ready': 'Yes',
+      'Drive Folder Status': 'Manual vendor-safe package ready',
+      'Vendor Pricing Required': 'Yes',
+      'Vendor Pricing Status': 'Contact Vendor',
+      'Reviewer': reviewer || existingLead.lead['Reviewer'] || 'Vendor Safe Review',
+      'Last Updated At': now
+    });
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: 'VENDOR-SAFE-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
+      outcome: 'vendor_safe_package_ready',
+      message: 'Vendor-safe package marked ready; lead moved to vendor pricing',
+      payload: {
+        leadId: leadId,
+        reviewer: reviewer || 'Vendor Safe Review'
+      },
+      submissionId: updatedLead.lead['Submission ID'] || '',
+      email: updatedLead.lead['Email'] || '',
+      source: 'Vendor Pricing Service'
+    });
+
+    return {
+      ok: true,
+      leadId: leadId,
+      lifecycleStatus: 'Vendor Pricing',
+      vendorSafePackageReady: 'Yes',
+      vendorPricingStatus: 'Contact Vendor',
+      nextAction: 'Contact vendor'
+    };
+  }
+
   function recordVendorPricing(payload) {
     var normalized = normalizePricingPayload_(payload || {});
     if (!normalized.leadId) {
@@ -187,6 +238,7 @@ var MidtsVendorPricingService = (function () {
   }
 
   return {
+    markVendorSafePackageReady: markVendorSafePackageReady,
     recordVendorPricing: recordVendorPricing,
     calculateClientPrice: calculateClientPrice_
   };
