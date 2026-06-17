@@ -56,6 +56,9 @@ function testAcknowledgementEmail() {
     ok: true,
     leadId: 'MIDTS-EMAIL-TEST',
     submissionId: 'email-test-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss'),
+    lifecycleStatus: 'New Lead',
+    reviewStatus: 'Pending Review',
+    nextAction: 'Review lead',
     lead: {
       submissionId: 'email-test',
       fullName: 'MIDTS Test Recipient',
@@ -68,4 +71,47 @@ function testAcknowledgementEmail() {
   };
 
   return MidtsEmailService.sendLeadAcknowledgement(leadResult);
+}
+
+function testInternalReviewNotification() {
+  var leadResult = {
+    ok: true,
+    leadId: 'MIDTS-INTERNAL-TEST',
+    submissionId: 'internal-test-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss'),
+    lifecycleStatus: 'New Lead',
+    reviewStatus: 'Pending Review',
+    nextAction: 'Review lead',
+    lead: {
+      submissionId: 'internal-test',
+      fullName: 'Internal Review Test',
+      email: Session.getActiveUser().getEmail(),
+      company: 'MIDTS',
+      projectType: 'Lifecycle test',
+      briefRequirement: 'Testing the MIDTS internal review notification.',
+      source: 'Apps Script Internal Test'
+    }
+  };
+
+  return MidtsEmailService.sendInternalReviewNotification(leadResult);
+}
+
+function testLifecycleIntakeWithSamplePost() {
+  var sample = {
+    webhookToken: MidtsConfig.getWebhookToken(),
+    lead_id: 'lifecycle-sample-' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyyMMddHHmmss'),
+    full_name: 'Lifecycle Sample Client',
+    work_email: Session.getActiveUser().getEmail(),
+    company: 'Sample Company',
+    project_type: 'CAD support',
+    brief_requirement: 'Testing the full intake lifecycle: lead row, client acknowledgement, internal notification, and logs.',
+    source: 'Apps Script Lifecycle Test',
+    pageUrl: 'manual-lifecycle-test'
+  };
+
+  return MidtsWebhookRouter.handlePost({
+    postData: {
+      type: 'application/json',
+      contents: JSON.stringify(sample)
+    }
+  }).getContent();
 }
