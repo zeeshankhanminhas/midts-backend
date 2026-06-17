@@ -45,6 +45,11 @@ var MidtsLeadService = (function () {
       };
     }
 
+    var duplicate = findDuplicateLead_(lead);
+    if (duplicate) {
+      return buildDuplicateResult_(duplicate, lead);
+    }
+
     var leadId = createLeadId();
     var now = new Date();
     MidtsSheetService.appendLeadRow([
@@ -93,12 +98,44 @@ var MidtsLeadService = (function () {
 
     return {
       ok: true,
+      duplicate: false,
       leadId: leadId,
       submissionId: lead.submissionId,
       lead: lead,
       lifecycleStatus: 'New Lead',
       reviewStatus: 'Pending Review',
       nextAction: 'Review lead'
+    };
+  }
+
+  function findDuplicateLead_(lead) {
+    if (lead.submissionId) {
+      var bySubmission = MidtsSheetService.findLeadBySubmissionId(lead.submissionId);
+      if (bySubmission) return bySubmission;
+    }
+    return null;
+  }
+
+  function buildDuplicateResult_(existing, submittedLead) {
+    return {
+      ok: true,
+      duplicate: true,
+      leadId: existing.lead['Lead ID'],
+      submissionId: existing.lead['Submission ID'] || submittedLead.submissionId,
+      lead: {
+        submissionId: existing.lead['Submission ID'] || submittedLead.submissionId,
+        fullName: existing.lead['Full Name'] || submittedLead.fullName,
+        email: existing.lead['Email'] || submittedLead.email,
+        company: existing.lead['Company'] || submittedLead.company,
+        projectType: existing.lead['Project Type'] || submittedLead.projectType,
+        briefRequirement: existing.lead['Brief Requirement'] || submittedLead.briefRequirement,
+        source: existing.lead['Source'] || submittedLead.source,
+        pageUrl: existing.lead['Page URL'] || submittedLead.pageUrl
+      },
+      lifecycleStatus: existing.lead['Lifecycle Status'] || '',
+      reviewStatus: existing.lead['Review Status'] || '',
+      nextAction: existing.lead['Next Action'] || '',
+      message: 'Duplicate submission ignored; existing lead returned.'
     };
   }
 
