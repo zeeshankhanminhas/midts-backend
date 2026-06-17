@@ -15,6 +15,13 @@ var MidtsDecisionService = (function () {
       }
 
       var result = applyDecision(params.leadId, params.decision, params.reviewer || 'Email Approval');
+      if (result.alreadyProcessed) {
+        return htmlResponse_('MIDTS decision already recorded', 'Lead ' + result.leadId + ' is already routed as ' + result.decisionLabel + '. No further action was taken.');
+      }
+      if (result.blocked) {
+        return htmlResponse_('MIDTS decision blocked', result.message);
+      }
+
       return htmlResponse_(
         'MIDTS lead decision recorded',
         'Lead ' + result.leadId + ' has been routed as ' + result.decisionLabel + '. Next action: ' + result.nextAction + '. Outcome email: ' + result.outcomeEmailStatus + '.'
@@ -35,6 +42,9 @@ var MidtsDecisionService = (function () {
     if (!existing) {
       throw new Error('Lead not found: ' + leadId);
     }
+
+    var guardResult = guardExistingDecision_(existing, normalizedDecision, decisionLabel, reviewer);
+    if (guardResult) return guardResult;
 
     var now = new Date();
     var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now);
@@ -71,6 +81,65 @@ var MidtsDecisionService = (function () {
       nextAction: updates['Next Action'],
       outcomeEmailStatus: outcomeEmailResult.status,
       updates: updates
+    };
+  }
+
+  function guardExistingDecision_(existing, requestedDecisionKey, requestedDecisionLabel, reviewer) {
+    var lead = existing.lead;
+    var leadId = lead['Lead ID'];
+    var existingApproval = String(lead['Human Approval'] || '').trim();
+    var existingDecisionLabel = String(lead['Qualification Decision'] || '').trim();
+
+    if (existingApproval !== 'Approved' && !existingDecisionLabel) {
+      return null;
+    }
+
+    var existingDecisionKey = normalizeDecision_(existingDecisionLabel);
+    var sameDecision = existingDecisionKey === requestedDecisionKey;
+    var now = new Date();
+    var outcome = sameDecision ? 'decision_duplicate' : 'decision_conflict';
+    var message = sameDecision
+      ? 'Duplicate decision ignored: ' + existingDecisionLabel
+      : 'Conflicting decision blocked. Existing: ' + existingDecisionLabel + ', requested: ' + requestedDecisionLabel;
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: 'DECISION-GUARD-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
+      outcome: outcome,
+      message: message,
+      payload: {
+        leadId: leadId,
+        existingDecision: existingDecisionLabel,
+        requestedDecision: requestedDecisionLabel,
+        reviewer: reviewer || 'Email Approval'
+      },
+      submissionId: lead['Submission ID'] || '',
+      email: lead['Email'] || '',
+      source: 'Decision Link'
+    });
+
+    if (sameDecision) {
+      return {
+        ok: true,
+        alreadyProcessed: true,
+        leadId: leadId,
+        decision: requestedDecisionKey,
+        decisionLabel: existingDecisionLabel,
+        nextAction: lead['Next Action'] || '',
+        outcomeEmailStatus: 'skipped',
+        message: 'Decision already recorded; no duplicate email sent.'
+      };
+    }
+
+    return {
+      ok: false,
+      blocked: true,
+      leadId: leadId,
+      decision: requestedDecisionKey,
+      decisionLabel: existingDecisionLabel,
+      requestedDecisionLabel: requestedDecisionLabel,
+      nextAction: lead['Next Action'] || '',
+      outcomeEmailStatus: 'skipped',
+      message: message
     };
   }
 
