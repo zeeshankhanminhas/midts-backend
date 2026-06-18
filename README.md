@@ -17,8 +17,9 @@ The first launchable version does one controlled commercial lifecycle well:
 9. Route human-approved decisions without manual sheet editing.
 10. Move qualified leads into vendor-safe review or vendor pricing before any quote is prepared.
 11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
-12. Record email attempts in an email log sheet.
-13. Return a clear success or failure response.
+12. Approve the latest pricing revision before quote preparation.
+13. Record email attempts in an email log sheet.
+14. Return a clear success or failure response.
 
 No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
@@ -104,7 +105,7 @@ Step 1 Lead
 
 If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
 
-Vendor pricing is an internal workflow service, not a public website webhook route. The public website token must not become a commercial control key.
+Vendor pricing and margin approval are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
 
 ## Apps Script Test Order
 
@@ -126,6 +127,7 @@ Then set Script Property `TEST_LEAD_ID` to the new lead ID returned by that test
 testDecisionQualified
 testVendorSafePackageReady
 testVendorPricingWithSamplePayload
+testMarginApproval
 ```
 
 Expected result:
@@ -136,4 +138,5 @@ Step 2 -> Pending Review and internal review email sent
 Qualified -> Vendor Safe Review if NDA/vendor-safe is required
 Vendor Safe Ready -> Vendor Pricing
 Vendor Pricing -> Margin Review Required
+Margin Approval -> Quote Preparation
 ```
