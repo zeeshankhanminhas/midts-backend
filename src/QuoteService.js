@@ -78,6 +78,9 @@ var MidtsQuoteService = (function () {
       return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
     }
 
+    var stageGuard = guardLeadHasQuoteDraft_(existingLead.lead);
+    if (!stageGuard.ok) return stageGuard;
+
     var quoteReference = String(existingLead.lead['Quote Reference'] || '').trim();
     if (!quoteReference) {
       return { ok: false, code: 'QUOTE_REFERENCE_MISSING', message: 'Quote reference is required to refresh quote document link.' };
@@ -101,6 +104,7 @@ var MidtsQuoteService = (function () {
       payload: {
         leadId: leadId,
         quoteReference: quoteReference,
+        quoteStatus: updatedLead.lead['Quote Status'] || '',
         quoteDocumentLink: quoteDocumentLink
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
@@ -112,6 +116,8 @@ var MidtsQuoteService = (function () {
       ok: true,
       leadId: leadId,
       quoteReference: quoteReference,
+      quoteStatus: updatedLead.lead['Quote Status'] || '',
+      lifecycleStatus: updatedLead.lead['Lifecycle Status'] || '',
       quoteDocumentLink: quoteDocumentLink
     };
   }
@@ -175,6 +181,30 @@ var MidtsQuoteService = (function () {
     }
     if (String(lead['Vendor Pricing Status'] || '').trim() !== 'Margin Approved') {
       return { ok: false, code: 'MARGIN_NOT_APPROVED', message: 'Margin must be approved before quote preparation.' };
+    }
+    return { ok: true };
+  }
+
+  function guardLeadHasQuoteDraft_(lead) {
+    var quoteStatus = String(lead['Quote Status'] || '').trim();
+    var lifecycleStatus = String(lead['Lifecycle Status'] || '').trim();
+    var allowedQuoteStatuses = {
+      'Draft Prepared': true,
+      'Approved to Send': true,
+      'Sent': true
+    };
+    var allowedLifecycleStatuses = {
+      'Quote Draft': true,
+      'Quote Approved': true,
+      'Quote Sent': true
+    };
+
+    if (!allowedQuoteStatuses[quoteStatus] || !allowedLifecycleStatuses[lifecycleStatus]) {
+      return {
+        ok: false,
+        code: 'QUOTE_DRAFT_NOT_AVAILABLE',
+        message: 'Quote document link can only be refreshed after quote draft preparation. Current Quote Status: ' + quoteStatus + '; Lifecycle Status: ' + lifecycleStatus + '.'
+      };
     }
     return { ok: true };
   }
