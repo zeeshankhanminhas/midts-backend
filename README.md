@@ -18,8 +18,9 @@ The first launchable version does one controlled commercial lifecycle well:
 10. Move qualified leads into vendor-safe review or vendor pricing before any quote is prepared.
 11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
 12. Approve the latest pricing revision before quote preparation.
-13. Record email attempts in an email log sheet.
-14. Return a clear success or failure response.
+13. Prepare a quote draft state using the frontend Quote template link.
+14. Record email attempts in an email log sheet.
+15. Return a clear success or failure response.
 
 No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
@@ -63,7 +64,7 @@ Run `setupLaunchSheets` after pushing Apps Script changes to create any missing 
 | `DEFAULT_MARGIN_TYPE` | Optional. `percentage` or `fixed`. Defaults to `percentage`. |
 | `DEFAULT_MARGIN_VALUE` | Optional. Default margin value. Defaults to `25`. |
 | `CAPABILITY_STATEMENT_URL` | Optional. Existing frontend Capability Statement route. |
-| `QUOTE_TEMPLATE_URL` | Optional. Existing frontend Quote route. |
+| `QUOTE_TEMPLATE_URL` | Optional. Existing frontend Quote route used to build the tracked quote draft link. |
 
 At least one of `STEP2_FORM_URL` or `STEP2_FORM_BASE_URL` should exist before real client launch. If both are missing, the acknowledgement email asks the client to reply for help instead of giving a broken link.
 
@@ -101,11 +102,12 @@ Step 1 Lead
 -> Vendor Pricing
 -> Margin Approval
 -> Quote Preparation
+-> Quote Draft Review
 ```
 
 If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
 
-Vendor pricing and margin approval are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
+Vendor pricing, margin approval, and quote preparation are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
 
 ## Apps Script Test Order
 
@@ -128,6 +130,7 @@ testDecisionQualified
 testVendorSafePackageReady
 testVendorPricingWithSamplePayload
 testMarginApproval
+testQuotePreparation
 ```
 
 Expected result:
@@ -139,4 +142,5 @@ Qualified -> Vendor Safe Review if NDA/vendor-safe is required
 Vendor Safe Ready -> Vendor Pricing
 Vendor Pricing -> Margin Review Required
 Margin Approval -> Quote Preparation
+Quote Preparation -> Quote Draft
 ```
