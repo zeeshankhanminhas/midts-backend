@@ -7,6 +7,10 @@ function doGet(e) {
     return MidtsDecisionService.handleDecisionRequest(e);
   }
 
+  if (e && e.parameter && isWorkflowAction_(e.parameter.action)) {
+    return MidtsWorkflowActionService.handleActionRequest(e);
+  }
+
   return MidtsResponseService.success({
     service: 'MIDTS Backend',
     status: 'ready',
@@ -177,6 +181,16 @@ function testQuoteApproval() {
   return MidtsQuoteService.approveQuoteDraft(leadId, 'Apps Script Test');
 }
 
+function testWorkflowActionUrls() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return {
+    vendorSafeReady: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.VENDOR_SAFE_READY),
+    approveMargin: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_MARGIN),
+    prepareQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.PREPARE_QUOTE),
+    approveQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_QUOTE)
+  };
+}
+
 function testMarginCalculation() {
   return MidtsVendorPricingService.calculateClientPrice(1000, 'percentage', 25);
 }
@@ -228,6 +242,14 @@ function postSampleStep2_(leadId, submissionId) {
       contents: JSON.stringify(sample)
     }
   });
+}
+
+function isWorkflowAction_(action) {
+  var normalized = String(action || '').trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
+  return normalized === 'vendorsafeready' ||
+    normalized === 'approvemargin' ||
+    normalized === 'preparequote' ||
+    normalized === 'approvequote';
 }
 
 function getTestEmail_() {
