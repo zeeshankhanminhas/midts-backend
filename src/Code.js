@@ -258,5 +258,5 @@ function isWorkflowAction_(action) {
 }
 
 function getTestEmail_() {
-  return MidtsConfig.getScriptProperty('TEST_EMAIL') || MidtsConfig.getScriptProperty('INTAKE_EMAIL') || 'intake@midts.com';
+  return MidtsConfig.getScriptProperty('TEST_EMAIL') || MidtsConfig.getScriptProperty('INTAKE_EMAIL') || 'midts.systems@gmail.com';
 }
