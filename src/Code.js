@@ -191,6 +191,11 @@ function testWorkflowActionUrls() {
   };
 }
 
+function testWorkflowActionEmail() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
+}
+
 function testMarginCalculation() {
   return MidtsVendorPricingService.calculateClientPrice(1000, 'percentage', 25);
 }
