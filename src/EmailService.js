@@ -129,6 +129,40 @@ var MidtsEmailService = (function () {
     }
   }
 
+  function sendWorkflowActionEmailForLead(leadId) {
+    var leadResult = MidtsSheetService.findLeadById(leadId);
+    if (!leadResult) {
+      return { ok: false, status: 'failed', message: 'Lead not found: ' + leadId };
+    }
+
+    var lead = sheetLeadToEmailLead_(leadResult.lead || {});
+    var intakeEmail = getIntakeEmail();
+    var email = buildWorkflowActionEmail_(leadId, leadResult.lead, lead, intakeEmail);
+    var logLeadResult = {
+      leadId: leadId,
+      submissionId: lead.submissionId,
+      lead: lead
+    };
+
+    try {
+      MailApp.sendEmail({
+        to: intakeEmail,
+        replyTo: lead.email || intakeEmail,
+        name: 'MIDTS Backend',
+        subject: email.subject,
+        body: email.body,
+        htmlBody: email.htmlBody
+      });
+
+      logEmail(logLeadResult, intakeEmail, '', email.subject, 'sent', email.logMessage);
+      return { ok: true, status: 'sent', message: email.logMessage };
+    } catch (error) {
+      var message = String(error && error.message ? error.message : error);
+      logEmail(logLeadResult, intakeEmail, '', email.subject, 'failed', message);
+      return { ok: false, status: 'failed', message: message };
+    }
+  }
+
   function buildDecisionOutcomeEmail_(decisionResult, lead, intakeEmail) {
     if (decisionResult.decision === 'qualified') {
       return buildQualifiedInternalEmail_(decisionResult, lead, intakeEmail);
@@ -143,12 +177,17 @@ var MidtsEmailService = (function () {
   }
 
   function buildQualifiedInternalEmail_(decisionResult, lead, intakeEmail) {
+    var updates = decisionResult.updates || {};
     var subject = 'Vendor pricing required - ' + decisionResult.leadId;
+    var workflowLines = buildQualifiedWorkflowLines_(decisionResult.leadId, updates);
     var lines = [
       'A MIDTS lead has been qualified after Step 2 and now needs vendor pricing review.',
       '',
       'Lead ID: ' + decisionResult.leadId,
-      'Quote Reference: ' + (decisionResult.updates['Quote Reference'] || ''),
+      'Quote Reference: ' + (updates['Quote Reference'] || ''),
+      'Lifecycle Status: ' + (updates['Lifecycle Status'] || ''),
+      'Quote Status: ' + (updates['Quote Status'] || ''),
+      'Vendor Pricing Status: ' + (updates['Vendor Pricing Status'] || ''),
       'Client: ' + lead.fullName,
       'Email: ' + lead.email,
       'Company: ' + lead.company,
@@ -157,8 +196,8 @@ var MidtsEmailService = (function () {
       'Brief:',
       lead.briefRequirement || 'No brief supplied',
       '',
-      'Next Action: Contact vendor / resolve vendor pricing before margin review and quote preparation.'
-    ];
+      'Workflow action:',
+    ].concat(workflowLines);
     return {
       to: intakeEmail,
       internalCopyEmail: '',
@@ -167,6 +206,89 @@ var MidtsEmailService = (function () {
       htmlBody: paragraphHtml_(lines),
       logMessage: 'Qualified vendor pricing email sent internally'
     };
+  }
+
+  function buildQualifiedWorkflowLines_(leadId, updates) {
+    if (String(updates['Vendor Pricing Status'] || '') === 'Vendor Safe Package Required') {
+      return [
+        'Mark Vendor Safe Ready: ' + MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.VENDOR_SAFE_READY),
+        'Use this after the vendor-safe package is ready. The lead will move to Vendor Pricing.'
+      ];
+    }
+
+    return [
+      'No approval click is needed yet.',
+      'Record vendor pricing first. After pricing is recorded, the system can send the margin approval action link.'
+    ];
+  }
+
+  function buildWorkflowActionEmail_(leadId, sheetLead, lead, intakeEmail) {
+    var subject = 'MIDTS workflow action - ' + leadId;
+    var actionLines = getWorkflowActionLines_(leadId, sheetLead);
+    var lines = [
+      'MIDTS workflow action for current lead stage.',
+      '',
+      'Lead ID: ' + leadId,
+      'Quote Reference: ' + (sheetLead['Quote Reference'] || ''),
+      'Lifecycle Status: ' + (sheetLead['Lifecycle Status'] || ''),
+      'Quote Status: ' + (sheetLead['Quote Status'] || ''),
+      'Vendor Pricing Status: ' + (sheetLead['Vendor Pricing Status'] || ''),
+      'Client: ' + lead.fullName,
+      'Email: ' + lead.email,
+      'Company: ' + lead.company,
+      '',
+      'Available action:',
+    ].concat(actionLines);
+
+    return {
+      subject: subject,
+      body: lines.join('\n'),
+      htmlBody: paragraphHtml_(lines),
+      logMessage: 'Workflow action email sent internally'
+    };
+  }
+
+  function getWorkflowActionLines_(leadId, sheetLead) {
+    var lifecycleStatus = String(sheetLead['Lifecycle Status'] || '');
+    var quoteStatus = String(sheetLead['Quote Status'] || '');
+    var vendorPricingStatus = String(sheetLead['Vendor Pricing Status'] || '');
+    var vendorSafeRequired = String(sheetLead['Vendor Safe Package Required'] || '').toLowerCase() === 'yes';
+    var vendorSafeReady = String(sheetLead['Vendor Safe Package Ready'] || '').toLowerCase() === 'yes';
+
+    if (vendorSafeRequired && !vendorSafeReady && quoteStatus === 'Waiting Vendor Safe Package') {
+      return [
+        'Mark Vendor Safe Ready: ' + MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.VENDOR_SAFE_READY)
+      ];
+    }
+
+    if (lifecycleStatus === 'Margin Review' || quoteStatus === 'Margin Review Required' || vendorPricingStatus === 'Pricing Received') {
+      return [
+        'Approve Margin: ' + MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_MARGIN)
+      ];
+    }
+
+    if (lifecycleStatus === 'Quote Preparation' || quoteStatus === 'Ready for Quote Draft') {
+      return [
+        'Prepare Quote: ' + MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.PREPARE_QUOTE)
+      ];
+    }
+
+    if (lifecycleStatus === 'Quote Draft' || quoteStatus === 'Draft Prepared') {
+      return [
+        'Approve Quote: ' + MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_QUOTE)
+      ];
+    }
+
+    if (lifecycleStatus === 'Vendor Pricing' || quoteStatus === 'Waiting Vendor Price') {
+      return [
+        'No approval click is available at this stage.',
+        'Record vendor pricing first. The next action after pricing is margin approval.'
+      ];
+    }
+
+    return [
+      'No workflow action is available for this stage. Review the lead status before proceeding.'
+    ];
   }
 
   function buildNeedsMoreInfoEmail_(decisionResult, lead, intakeEmail) {
@@ -181,7 +303,7 @@ var MidtsEmailService = (function () {
       'Reference: ' + decisionResult.leadId,
       '',
       'MIDTS',
-      'intake@midts.com'
+      intakeEmail
     ];
     return {
       to: lead.email,
@@ -206,7 +328,7 @@ var MidtsEmailService = (function () {
       'Reference: ' + decisionResult.leadId,
       '',
       'MIDTS',
-      'intake@midts.com'
+      intakeEmail
     ];
     return {
       to: lead.email,
@@ -231,7 +353,7 @@ var MidtsEmailService = (function () {
       'Reference: ' + decisionResult.leadId,
       '',
       'MIDTS',
-      'intake@midts.com'
+      intakeEmail
     ];
     return {
       to: lead.email,
@@ -265,6 +387,7 @@ var MidtsEmailService = (function () {
 
   function buildPlainTextBody(lead, leadId) {
     var step2Url = buildStep2Url_(leadId, lead.submissionId);
+    var intakeEmail = getIntakeEmail();
     return [
       'Hello ' + lead.fullName + ',',
       '',
@@ -277,12 +400,13 @@ var MidtsEmailService = (function () {
       step2Url ? 'Step 2 link: ' + step2Url : 'If you do not have the Step 2 link, reply to this email and we will help you complete the technical requirement.',
       '',
       'MIDTS',
-      'intake@midts.com'
+      intakeEmail
     ].join('\n');
   }
 
   function buildHtmlBody(lead, leadId) {
     var step2Url = buildStep2Url_(leadId, lead.submissionId);
+    var intakeEmail = getIntakeEmail();
     var lines = [
       'Hello ' + lead.fullName + ',',
       '',
@@ -295,7 +419,7 @@ var MidtsEmailService = (function () {
       step2Url ? 'Step 2 link: ' + step2Url : 'If you do not have the Step 2 link, reply to this email and we will help you complete the technical requirement.',
       '',
       'MIDTS',
-      'intake@midts.com'
+      intakeEmail
     ];
     return paragraphHtml_(lines);
   }
@@ -394,9 +518,9 @@ var MidtsEmailService = (function () {
 
   function linkifyAndEscape_(value) {
     var text = String(value || '');
-    if (text.indexOf('Step 2 link: http') === 0) {
-      var url = text.replace('Step 2 link: ', '');
-      return 'Step 2 link: <a href="' + escapeHtml(url) + '">' + escapeHtml(url) + '</a>';
+    var labeledUrl = text.match(/^([^:\n]{1,90}):\s*(https?:\/\/\S+)$/);
+    if (labeledUrl) {
+      return escapeHtml(labeledUrl[1]) + ': <a href="' + escapeHtml(labeledUrl[2]) + '">' + escapeHtml(labeledUrl[2]) + '</a>';
     }
     return escapeHtml(text);
   }
@@ -414,6 +538,7 @@ var MidtsEmailService = (function () {
     sendLeadAcknowledgement: sendLeadAcknowledgement,
     sendInternalReviewNotification: sendInternalReviewNotification,
     sendDecisionOutcomeEmail: sendDecisionOutcomeEmail,
+    sendWorkflowActionEmailForLead: sendWorkflowActionEmailForLead,
     buildPlainTextBody: buildPlainTextBody,
     buildHtmlBody: buildHtmlBody
   };
