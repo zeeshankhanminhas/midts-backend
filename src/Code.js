@@ -162,6 +162,11 @@ function testMarginApproval() {
   return MidtsVendorPricingService.approveLatestMargin(leadId, 'Apps Script Test');
 }
 
+function testQuotePreparation() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsQuoteService.prepareQuoteDraft(leadId, 'Apps Script Test');
+}
+
 function testMarginCalculation() {
   return MidtsVendorPricingService.calculateClientPrice(1000, 'percentage', 25);
 }
