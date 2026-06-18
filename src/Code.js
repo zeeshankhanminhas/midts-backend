@@ -167,6 +167,11 @@ function testQuotePreparation() {
   return MidtsQuoteService.prepareQuoteDraft(leadId, 'Apps Script Test');
 }
 
+function testQuoteDocumentLinkRefresh() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsQuoteService.refreshQuoteDocumentLink(leadId);
+}
+
 function testQuoteApproval() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsQuoteService.approveQuoteDraft(leadId, 'Apps Script Test');
