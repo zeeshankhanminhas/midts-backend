@@ -1,5 +1,5 @@
 var MidtsEmailService = (function () {
-  var DEFAULT_INTAKE_EMAIL = 'intake@midts.com';
+  var DEFAULT_INTAKE_EMAIL = 'midts.systems@gmail.com';
 
   function sendLeadAcknowledgement(leadResult) {
     var lead = leadResult && leadResult.lead;
