@@ -147,6 +147,86 @@ var MidtsVendorPricingService = (function () {
     };
   }
 
+  function approveLatestMargin(leadId, approver) {
+    if (!leadId) {
+      return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required for margin approval.' };
+    }
+
+    var existingLead = MidtsSheetService.findLeadById(leadId);
+    if (!existingLead) {
+      return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
+    }
+
+    var leadGuard = guardLeadReadyForMarginApproval_(existingLead.lead);
+    if (!leadGuard.ok) return leadGuard;
+
+    var latestPricing = MidtsSheetService.findLatestVendorPricingByLeadId(leadId);
+    if (!latestPricing) {
+      return { ok: false, code: 'VENDOR_PRICING_NOT_FOUND', message: 'No vendor pricing row found for lead: ' + leadId };
+    }
+
+    if (isYes_(latestPricing.pricing['Pricing Approved'])) {
+      return { ok: false, code: 'MARGIN_ALREADY_APPROVED', message: 'Latest pricing revision is already approved.' };
+    }
+
+    var clientQuoteAmount = parseMoney_(latestPricing.pricing['Client Quote Amount']);
+    if (clientQuoteAmount === null) {
+      return { ok: false, code: 'CLIENT_QUOTE_AMOUNT_MISSING', message: 'Client quote amount is missing on latest pricing revision.' };
+    }
+
+    var now = new Date();
+    var approvedBy = approver || 'Apps Script Approval';
+    var updatedPricing = MidtsSheetService.updateVendorPricingByPricingId(latestPricing.pricing['Pricing ID'], {
+      'Pricing Status': 'Margin Approved',
+      'Pricing Approved': 'Yes',
+      'Pricing Approved By': approvedBy,
+      'Pricing Approved At': now,
+      'Last Updated At': now
+    });
+
+    var updatedLead = MidtsSheetService.updateLeadById(leadId, {
+      'Lifecycle Status': 'Quote Preparation',
+      'Next Action': 'Prepare quote',
+      'Next Action Due': now,
+      'Quote Required': 'Yes',
+      'Quote Reference': latestPricing.pricing['Quote Reference'] || existingLead.lead['Quote Reference'] || '',
+      'Quote Status': 'Ready for Quote Draft',
+      'Vendor Pricing Required': 'Yes',
+      'Vendor Pricing Status': 'Margin Approved',
+      'Reviewer': approvedBy,
+      'Last Updated At': now
+    });
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: 'MARGIN-APPROVAL-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
+      outcome: 'margin_approved',
+      message: 'Margin approved; lead moved to quote preparation',
+      payload: {
+        leadId: leadId,
+        pricingId: latestPricing.pricing['Pricing ID'],
+        quoteReference: latestPricing.pricing['Quote Reference'] || '',
+        clientQuoteAmount: clientQuoteAmount,
+        approvedBy: approvedBy
+      },
+      submissionId: updatedLead.lead['Submission ID'] || '',
+      email: updatedLead.lead['Email'] || '',
+      source: 'Vendor Pricing Service'
+    });
+
+    return {
+      ok: true,
+      leadId: leadId,
+      pricingId: latestPricing.pricing['Pricing ID'],
+      quoteReference: updatedPricing.pricing['Quote Reference'] || '',
+      clientQuoteAmount: clientQuoteAmount,
+      pricingStatus: 'Margin Approved',
+      pricingApproved: 'Yes',
+      quoteStatus: 'Ready for Quote Draft',
+      lifecycleStatus: 'Quote Preparation',
+      nextAction: 'Prepare quote'
+    };
+  }
+
   function guardLeadReadyForPricing_(lead) {
     if (!isYes_(lead['Vendor Pricing Required'])) {
       return { ok: false, code: 'VENDOR_PRICING_NOT_REQUIRED', message: 'Lead is not currently marked for vendor pricing.' };
@@ -161,6 +241,19 @@ var MidtsVendorPricingService = (function () {
       return { ok: false, code: 'LEAD_NOT_IN_VENDOR_PRICING', message: 'Lead lifecycle must be Vendor Pricing before recording vendor pricing.' };
     }
 
+    return { ok: true };
+  }
+
+  function guardLeadReadyForMarginApproval_(lead) {
+    if (String(lead['Lifecycle Status'] || '').trim() !== 'Margin Review') {
+      return { ok: false, code: 'LEAD_NOT_IN_MARGIN_REVIEW', message: 'Lead lifecycle must be Margin Review before approving margin.' };
+    }
+    if (String(lead['Quote Status'] || '').trim() !== 'Margin Review Required') {
+      return { ok: false, code: 'QUOTE_NOT_IN_MARGIN_REVIEW', message: 'Quote status must be Margin Review Required before approving margin.' };
+    }
+    if (String(lead['Vendor Pricing Status'] || '').trim() !== 'Pricing Received') {
+      return { ok: false, code: 'VENDOR_PRICING_NOT_RECEIVED', message: 'Vendor pricing must be received before approving margin.' };
+    }
     return { ok: true };
   }
 
@@ -240,6 +333,7 @@ var MidtsVendorPricingService = (function () {
   return {
     markVendorSafePackageReady: markVendorSafePackageReady,
     recordVendorPricing: recordVendorPricing,
+    approveLatestMargin: approveLatestMargin,
     calculateClientPrice: calculateClientPrice_
   };
 })();
