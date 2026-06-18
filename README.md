@@ -19,8 +19,9 @@ The first launchable version does one controlled commercial lifecycle well:
 11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
 12. Approve the latest pricing revision before quote preparation.
 13. Prepare a quote draft state using the frontend Quote template link.
-14. Record email attempts in an email log sheet.
-15. Return a clear success or failure response.
+14. Approve the quote draft before sending.
+15. Record email attempts in an email log sheet.
+16. Return a clear success or failure response.
 
 No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
@@ -103,11 +104,12 @@ Step 1 Lead
 -> Margin Approval
 -> Quote Preparation
 -> Quote Draft Review
+-> Quote Approved to Send
 ```
 
 If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
 
-Vendor pricing, margin approval, and quote preparation are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
+Vendor pricing, margin approval, quote preparation, and quote approval are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
 
 ## Apps Script Test Order
 
@@ -131,6 +133,7 @@ testVendorSafePackageReady
 testVendorPricingWithSamplePayload
 testMarginApproval
 testQuotePreparation
+testQuoteApproval
 ```
 
 Expected result:
@@ -143,4 +146,5 @@ Vendor Safe Ready -> Vendor Pricing
 Vendor Pricing -> Margin Review Required
 Margin Approval -> Quote Preparation
 Quote Preparation -> Quote Draft
+Quote Approval -> Approved to Send
 ```
