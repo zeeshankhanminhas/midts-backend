@@ -19,9 +19,12 @@ var MidtsWorkflowActionService = (function () {
         return htmlResponse_('MIDTS action blocked', result.message || result.code || 'The action could not be completed.');
       }
 
+      var emailResult = sendNextActionEmailIfUseful_(params.leadId);
+      var emailMessage = emailResult && emailResult.ok ? ' Next workflow email sent.' : '';
+
       return htmlResponse_(
         'MIDTS action completed',
-        'Lead ' + result.leadId + ' updated. Next action: ' + (result.nextAction || 'Review next workflow step') + '. Status: ' + (result.lifecycleStatus || result.quoteStatus || 'Updated') + '.'
+        'Lead ' + result.leadId + ' updated. Next action: ' + (result.nextAction || 'Review next workflow step') + '. Status: ' + (result.lifecycleStatus || result.quoteStatus || 'Updated') + '.' + emailMessage
       );
     } catch (error) {
       return htmlResponse_('MIDTS action failed', String(error && error.message ? error.message : error));
@@ -54,6 +57,27 @@ var MidtsWorkflowActionService = (function () {
       'leadId=' + encodeURIComponent(leadId),
       'token=' + encodeURIComponent(MidtsConfig.getDecisionToken())
     ].join('&');
+  }
+
+  function sendNextActionEmailIfUseful_(leadId) {
+    try {
+      var leadResult = MidtsSheetService.findLeadById(leadId);
+      if (!leadResult) return { ok: false, status: 'skipped', message: 'Lead not found.' };
+
+      var lifecycleStatus = String(leadResult.lead['Lifecycle Status'] || '');
+      var quoteStatus = String(leadResult.lead['Quote Status'] || '');
+
+      if (lifecycleStatus === 'Vendor Pricing' || quoteStatus === 'Waiting Vendor Price') {
+        return { ok: false, status: 'skipped', message: 'Vendor pricing must be recorded before the next approval link.' };
+      }
+      if (lifecycleStatus === 'Quote Approved' || quoteStatus === 'Approved to Send') {
+        return { ok: false, status: 'skipped', message: 'No further approval link required.' };
+      }
+
+      return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
+    } catch (error) {
+      return { ok: false, status: 'failed', message: String(error && error.message ? error.message : error) };
+    }
   }
 
   function validateActionParams_(params) {
