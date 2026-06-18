@@ -68,6 +68,54 @@ var MidtsQuoteService = (function () {
     };
   }
 
+  function refreshQuoteDocumentLink(leadId) {
+    if (!leadId) {
+      return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required to refresh quote document link.' };
+    }
+
+    var existingLead = MidtsSheetService.findLeadById(leadId);
+    if (!existingLead) {
+      return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
+    }
+
+    var quoteReference = String(existingLead.lead['Quote Reference'] || '').trim();
+    if (!quoteReference) {
+      return { ok: false, code: 'QUOTE_REFERENCE_MISSING', message: 'Quote reference is required to refresh quote document link.' };
+    }
+
+    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId);
+    if (!quoteDocumentLink) {
+      return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'QUOTE_TEMPLATE_URL Script Property is required.' };
+    }
+
+    var now = new Date();
+    var updatedLead = MidtsSheetService.updateLeadById(leadId, {
+      'Quote Document Link': quoteDocumentLink,
+      'Last Updated At': now
+    });
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: 'QUOTE-LINK-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
+      outcome: 'quote_document_link_refreshed',
+      message: 'Quote document link refreshed from quote reference and template URL',
+      payload: {
+        leadId: leadId,
+        quoteReference: quoteReference,
+        quoteDocumentLink: quoteDocumentLink
+      },
+      submissionId: updatedLead.lead['Submission ID'] || '',
+      email: updatedLead.lead['Email'] || '',
+      source: 'Quote Service'
+    });
+
+    return {
+      ok: true,
+      leadId: leadId,
+      quoteReference: quoteReference,
+      quoteDocumentLink: quoteDocumentLink
+    };
+  }
+
   function approveQuoteDraft(leadId, approver) {
     if (!leadId) {
       return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required for quote approval.' };
@@ -169,6 +217,7 @@ var MidtsQuoteService = (function () {
 
   return {
     prepareQuoteDraft: prepareQuoteDraft,
+    refreshQuoteDocumentLink: refreshQuoteDocumentLink,
     approveQuoteDraft: approveQuoteDraft
   };
 })();
