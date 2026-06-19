@@ -22,7 +22,7 @@ var MidtsQuoteService = (function () {
     }
 
     var quoteReference = existingLead.lead['Quote Reference'] || latestPricing.pricing['Quote Reference'] || createQuoteReference_();
-    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId);
+    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
     var now = new Date();
     var preparedBy = preparer || 'Apps Script Test';
 
@@ -86,7 +86,12 @@ var MidtsQuoteService = (function () {
       return { ok: false, code: 'QUOTE_REFERENCE_MISSING', message: 'Quote reference is required to refresh quote document link.' };
     }
 
-    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId);
+    var latestPricing = MidtsSheetService.findLatestVendorPricingByLeadId(leadId);
+    if (!latestPricing) {
+      return { ok: false, code: 'VENDOR_PRICING_NOT_FOUND', message: 'Approved vendor pricing is required to refresh the quote document link.' };
+    }
+
+    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
     if (!quoteDocumentLink) {
       return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'QUOTE_TEMPLATE_URL Script Property is required.' };
     }
@@ -225,15 +230,38 @@ var MidtsQuoteService = (function () {
     return { ok: true };
   }
 
-  function buildQuoteDocumentLink_(quoteReference, leadId) {
+  function buildQuoteDocumentLink_(quoteReference, leadId, lead, pricing) {
     var templateUrl = MidtsConfig.getScriptProperty('QUOTE_TEMPLATE_URL');
-    if (!templateUrl) return '';
+    var total = formatQuoteAmount_(pricing && pricing['Client Quote Amount'], pricing && pricing['Vendor Currency']);
+    if (!templateUrl || !total) return '';
+
+    var currency = String(pricing && pricing['Vendor Currency'] || 'GBP').toUpperCase();
+    var validityDays = Number(MidtsConfig.getScriptProperty('QUOTE_VALIDITY_DAYS') || 30);
+    if (!isFinite(validityDays) || validityDays < 1) validityDays = 30;
+    var scope = String(lead && lead['Brief Requirement'] || 'Engineering support in line with the agreed project scope.')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 700);
 
     var separator = templateUrl.indexOf('?') === -1 ? '?' : '&';
     return templateUrl + separator + [
       'quoteReference=' + encodeURIComponent(quoteReference || ''),
-      'leadId=' + encodeURIComponent(leadId || '')
+      'leadId=' + encodeURIComponent(leadId || ''),
+      'clientName=' + encodeURIComponent(String(lead && lead['Full Name'] || 'Client')),
+      'scope=' + encodeURIComponent(scope),
+      'total=' + encodeURIComponent(total),
+      'currency=' + encodeURIComponent(currency),
+      'issued=' + encodeURIComponent(Utilities.formatDate(new Date(), 'Europe/London', 'd MMMM yyyy')),
+      'validity=' + encodeURIComponent(validityDays + ' Days From Issue'),
+      'vat=' + encodeURIComponent(MidtsConfig.getScriptProperty('QUOTE_VAT_TEXT') || 'Subject to VAT where applicable')
     ].join('&');
+  }
+
+  function formatQuoteAmount_(value, currency) {
+    var amount = Number(String(value || '').replace(/,/g, '').trim());
+    if (!isFinite(amount)) return '';
+    var symbol = String(currency || 'GBP').toUpperCase() === 'GBP' ? '£' : String(currency || 'GBP').toUpperCase() + ' ';
+    return symbol + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   function createQuoteReference_() {
