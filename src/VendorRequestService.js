@@ -239,6 +239,12 @@ var MidtsVendorRequestService = (function () {
   }
 
   function createAndSendRequest_(input) {
+    var lock = LockService.getScriptLock();
+    var lockAcquired = false;
+    try {
+      lockAcquired = lock.tryLock(10000);
+      if (!lockAcquired) return { ok: false, message: 'Vendor request is busy. Submit again in a moment.' };
+
     var leadId = String(input.leadId || '').trim();
     var vendorName = String(input.vendorName || '').trim();
     var vendorEmail = String(input.vendorEmail || '').trim();
@@ -313,6 +319,9 @@ var MidtsVendorRequestService = (function () {
       source: 'Vendor Request Service'
     });
     return { ok: true, leadId: leadId, requestId: requestId, vendorEmail: vendorEmail };
+    } finally {
+      if (lockAcquired) lock.releaseLock();
+    }
   }
 
   function sendVendorRequestEmail_(request, lead, pricingUrl) {
