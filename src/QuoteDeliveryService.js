@@ -137,6 +137,7 @@ var MidtsQuoteDeliveryService = (function () {
         'Last Updated At': now
       });
       MidtsSheetService.updateLeadById(response.record['Lead ID'], Object.assign(leadUpdate, { 'Last Updated At': now }));
+      sendClientOutcomeNotification_(response.record, outcome, String(params.notes || '').trim());
       MidtsLogger.logWebhookAttempt({
         requestId: 'QUOTE-RESPONSE-' + response.record['Response ID'],
         outcome: 'quote_client_' + outcome,
@@ -211,6 +212,30 @@ var MidtsQuoteDeliveryService = (function () {
       return { ok: true };
     } catch (error) {
       return { ok: false, message: errorMessage_(error) };
+    }
+  }
+
+  function sendClientOutcomeNotification_(response, outcome, notes) {
+    var subject = 'Client quote response - ' + (response['Quote Reference'] || response['Lead ID']);
+    var body = [
+      'A client response has been recorded.',
+      '',
+      'Lead ID: ' + (response['Lead ID'] || ''),
+      'Quote Reference: ' + (response['Quote Reference'] || ''),
+      'Outcome: ' + outcomeLabel_(outcome),
+      notes ? 'Client note: ' + notes : ''
+    ].filter(function (line) { return line !== ''; }).join('\n');
+
+    try {
+      MailApp.sendEmail({
+        to: getIntakeEmail_(),
+        name: 'MIDTS Backend',
+        subject: subject,
+        body: body
+      });
+      MidtsSheetService.appendEmailLog([new Date(), response['Lead ID'] || '', '', getIntakeEmail_(), '', subject, 'sent', 'Client quote response notification sent']);
+    } catch (error) {
+      console.log('Client response notification failed: ' + errorMessage_(error));
     }
   }
 
