@@ -125,7 +125,13 @@ var MidtsVendorRequestService = (function () {
   }
 
   function handleVendorPricingSubmission(e) {
+    var lock = LockService.getScriptLock();
+    var lockAcquired = false;
     try {
+      lockAcquired = lock.tryLock(10000);
+      if (!lockAcquired) {
+        return htmlPage_('Pricing submission delayed', '<p>Please submit the form again in a moment.</p>');
+      }
       var params = e && e.parameter || {};
       var request = validateVendorRequest_(params.requestId, params.token);
       if (!request.ok) {
@@ -184,6 +190,8 @@ var MidtsVendorRequestService = (function () {
       );
     } catch (error) {
       return htmlPage_('Pricing submission failed', '<p>' + escapeHtml_(errorMessage_(error)) + '</p>');
+    } finally {
+      if (lockAcquired) lock.releaseLock();
     }
   }
 
@@ -246,6 +254,9 @@ var MidtsVendorRequestService = (function () {
     if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
     if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Vendor Pricing') {
       return { ok: false, message: 'Lead is not in Vendor Pricing.' };
+    }
+    if (findOpenRequestForLeadAndVendor_(leadId, vendorEmail)) {
+      return { ok: false, message: 'An open vendor pricing request already exists for this vendor and lead.' };
     }
 
     var now = new Date();
@@ -381,6 +392,20 @@ var MidtsVendorRequestService = (function () {
   function appendRequest_(request) {
     var sheet = getSheet_();
     sheet.appendRow(HEADERS.map(function (header) { return request[header] === undefined ? '' : request[header]; }));
+  }
+
+  function findOpenRequestForLeadAndVendor_(leadId, vendorEmail) {
+    var sheet = getSheet_();
+    var values = sheet.getDataRange().getValues();
+    if (values.length < 2) return null;
+    var headerMap = values[0].reduce(function (map, header, index) { map[String(header || '').trim()] = index + 1; return map; }, {});
+    for (var i = 1; i < values.length; i += 1) {
+      var sameLead = String(values[i][headerMap['Lead ID'] - 1]) === String(leadId);
+      var sameVendor = String(values[i][headerMap['Vendor Email'] - 1]).toLowerCase() === String(vendorEmail).toLowerCase();
+      var status = String(values[i][headerMap['Request Status'] - 1]);
+      if (sameLead && sameVendor && (status === 'Pending Send' || status === 'Sent')) return true;
+    }
+    return false;
   }
 
   function findRequestById_(requestId) {
