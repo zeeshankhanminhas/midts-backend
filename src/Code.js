@@ -6,6 +6,9 @@ function doPost(e) {
   if (action === 'vendorPricing') {
     return MidtsVendorRequestService.handleVendorPricingSubmission(e);
   }
+  if (action === 'quoteResponse') {
+    return MidtsQuoteDeliveryService.handleClientResponse(e);
+  }
   return MidtsWebhookRouter.handlePost(e);
 }
 
@@ -15,6 +18,9 @@ function doGet(e) {
   }
   if (e && e.parameter && e.parameter.action === 'vendorPricing') {
     return MidtsVendorRequestService.renderVendorPricingForm(e);
+  }
+  if (e && e.parameter && e.parameter.action === 'quoteResponse') {
+    return MidtsQuoteDeliveryService.renderClientResponse(e);
   }
 
   if (e && e.parameter && e.parameter.action === 'decision') {
@@ -37,6 +43,7 @@ function setupLaunchSheets() {
   MidtsVendorRequestService.ensureVendorRequestSheet();
   result.vendorRequestsSheet = 'Vendor Requests';
   result.pipelineSheet = MidtsPipelineService.ensurePipelineSheet();
+  result.quoteResponsesSheet = MidtsQuoteDeliveryService.ensureQuoteResponseSheet();
   MidtsPipelineService.refresh();
   return result;
 }
@@ -206,13 +213,19 @@ function testWorkflowActionUrls() {
     vendorSafeReady: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.VENDOR_SAFE_READY),
     approveMargin: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_MARGIN),
     prepareQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.PREPARE_QUOTE),
-    approveQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_QUOTE)
+    approveQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.APPROVE_QUOTE),
+    sendQuote: MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.SEND_QUOTE)
   };
 }
 
 function testWorkflowActionEmail() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
+}
+
+function testQuoteSendEmail() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsQuoteDeliveryService.sendQuoteSendEmail(leadId);
 }
 
 function testVendorPricingRequestSetupEmail() {
@@ -289,7 +302,8 @@ function isWorkflowAction_(action) {
   return normalized === 'vendorsafeready' ||
     normalized === 'approvemargin' ||
     normalized === 'preparequote' ||
-    normalized === 'approvequote';
+    normalized === 'approvequote' ||
+    normalized === 'sendquote';
 }
 
 function getTestEmail_() {
