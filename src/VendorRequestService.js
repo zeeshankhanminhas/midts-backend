@@ -492,7 +492,13 @@ var MidtsVendorRequestService = (function () {
     return String(error && error.message ? error.message : error);
   }
 
+  function ensureVendorRequestSheet() {
+    getSheet_();
+    return SHEET_NAME;
+  }
+
   return {
+    ensureVendorRequestSheet: ensureVendorRequestSheet,
     renderRequestSetup: renderRequestSetup,
     handleRequestSetupSubmission: handleRequestSetupSubmission,
     renderVendorPricingForm: renderVendorPricingForm,
