@@ -215,7 +215,9 @@ function testWorkflowActionEmail() {
 
 function testVendorPricingRequestSetupEmail() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
-  return MidtsVendorRequestService.sendRequestSetupEmail(leadId);
+  var result = MidtsVendorRequestService.sendRequestSetupEmail(leadId);
+  console.log(JSON.stringify({ leadId: leadId, result: result }));
+  return result;
 }
 
 function testVendorPricingRequestSetupUrl() {
