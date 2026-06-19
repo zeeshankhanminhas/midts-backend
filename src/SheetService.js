@@ -169,6 +169,7 @@ var MidtsSheetService = (function () {
 
   function appendLeadRow(row) {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS), LEAD_HEADERS, row);
+    refreshPipelineSafely_();
   }
 
   function appendTechnicalIntakeRow(row) {
@@ -315,6 +316,7 @@ var MidtsSheetService = (function () {
       throw new Error('Lead not found: ' + leadId);
     }
     updateRowByHeaders_(result.sheet, result.rowNumber, result.headerMap, updates);
+    refreshPipelineSafely_();
     return findLeadById(leadId);
   }
 
@@ -350,12 +352,21 @@ var MidtsSheetService = (function () {
     return row;
   }
 
+  function refreshPipelineSafely_() {
+    try {
+      if (typeof MidtsPipelineService !== 'undefined') MidtsPipelineService.refresh();
+    } catch (error) {
+      console.log('Pipeline refresh skipped: ' + String(error && error.message ? error.message : error));
+    }
+  }
+
   function ensureLaunchSheets() {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
     getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
     getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
+    refreshPipelineSafely_();
     return {
       leadsSheet: SHEETS.LEADS,
       technicalIntakeSheet: SHEETS.TECHNICAL_INTAKE,
