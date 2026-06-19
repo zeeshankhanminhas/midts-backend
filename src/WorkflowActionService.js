@@ -68,7 +68,7 @@ var MidtsWorkflowActionService = (function () {
       var quoteStatus = String(leadResult.lead['Quote Status'] || '');
 
       if (lifecycleStatus === 'Vendor Pricing' || quoteStatus === 'Waiting Vendor Price') {
-        return { ok: false, status: 'skipped', message: 'Vendor pricing must be recorded before the next approval link.' };
+        return MidtsVendorRequestService.sendRequestSetupEmail(leadId);
       }
       if (lifecycleStatus === 'Quote Approved' || quoteStatus === 'Approved to Send') {
         return { ok: false, status: 'skipped', message: 'No further approval link required.' };
