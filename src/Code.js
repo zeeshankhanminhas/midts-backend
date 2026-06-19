@@ -36,6 +36,8 @@ function setupLaunchSheets() {
   var result = MidtsSheetService.ensureLaunchSheets();
   MidtsVendorRequestService.ensureVendorRequestSheet();
   result.vendorRequestsSheet = 'Vendor Requests';
+  result.pipelineSheet = MidtsPipelineService.ensurePipelineSheet();
+  MidtsPipelineService.refresh();
   return result;
 }
 
@@ -223,6 +225,10 @@ function testVendorPricingRequestSetupEmail() {
 function testVendorPricingRequestSetupUrl() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsVendorRequestService.buildRequestSetupUrl(leadId);
+}
+
+function testRefreshPipeline() {
+  return MidtsPipelineService.refresh();
 }
 
 function testMarginCalculation() {
