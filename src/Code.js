@@ -1,8 +1,22 @@
 function doPost(e) {
+  var action = e && e.parameter && e.parameter.action;
+  if (action === 'vendorRequestSetup') {
+    return MidtsVendorRequestService.handleRequestSetupSubmission(e);
+  }
+  if (action === 'vendorPricing') {
+    return MidtsVendorRequestService.handleVendorPricingSubmission(e);
+  }
   return MidtsWebhookRouter.handlePost(e);
 }
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'vendorRequestSetup') {
+    return MidtsVendorRequestService.renderRequestSetup(e);
+  }
+  if (e && e.parameter && e.parameter.action === 'vendorPricing') {
+    return MidtsVendorRequestService.renderVendorPricingForm(e);
+  }
+
   if (e && e.parameter && e.parameter.action === 'decision') {
     return MidtsDecisionService.handleDecisionRequest(e);
   }
@@ -19,7 +33,10 @@ function doGet(e) {
 }
 
 function setupLaunchSheets() {
-  return MidtsSheetService.ensureLaunchSheets();
+  var result = MidtsSheetService.ensureLaunchSheets();
+  MidtsVendorRequestService.ensureVendorRequestSheet();
+  result.vendorRequestsSheet = 'Vendor Requests';
+  return result;
 }
 
 function testWebsiteWebhookWithSampleLead() {
@@ -194,6 +211,16 @@ function testWorkflowActionUrls() {
 function testWorkflowActionEmail() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
+}
+
+function testVendorPricingRequestSetupEmail() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsVendorRequestService.sendRequestSetupEmail(leadId);
+}
+
+function testVendorPricingRequestSetupUrl() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsVendorRequestService.buildRequestSetupUrl(leadId);
 }
 
 function testMarginCalculation() {
