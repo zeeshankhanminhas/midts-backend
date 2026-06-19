@@ -3,7 +3,8 @@ var MidtsWorkflowActionService = (function () {
     VENDOR_SAFE_READY: 'vendorSafeReady',
     APPROVE_MARGIN: 'approveMargin',
     PREPARE_QUOTE: 'prepareQuote',
-    APPROVE_QUOTE: 'approveQuote'
+    APPROVE_QUOTE: 'approveQuote',
+    SEND_QUOTE: 'sendQuote'
   };
 
   function handleActionRequest(e) {
@@ -45,6 +46,9 @@ var MidtsWorkflowActionService = (function () {
     if (action === normalizeAction_(ACTIONS.APPROVE_QUOTE)) {
       return MidtsQuoteService.approveQuoteDraft(leadId, reviewer || 'Email Approval');
     }
+    if (action === normalizeAction_(ACTIONS.SEND_QUOTE)) {
+      return MidtsQuoteDeliveryService.sendQuoteToClient(leadId, reviewer || 'Email Approval');
+    }
 
     return { ok: false, code: 'UNSUPPORTED_ACTION', message: 'Unsupported action: ' + actionKey };
   }
@@ -71,7 +75,10 @@ var MidtsWorkflowActionService = (function () {
         return MidtsVendorRequestService.sendRequestSetupEmail(leadId);
       }
       if (lifecycleStatus === 'Quote Approved' || quoteStatus === 'Approved to Send') {
-        return { ok: false, status: 'skipped', message: 'No further approval link required.' };
+        return MidtsQuoteDeliveryService.sendQuoteSendEmail(leadId);
+      }
+      if (lifecycleStatus === 'Quote Sent' || quoteStatus === 'Sent') {
+        return { ok: false, status: 'skipped', message: 'Awaiting client quote response.' };
       }
 
       return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
@@ -104,7 +111,8 @@ var MidtsWorkflowActionService = (function () {
     return action === normalizeAction_(ACTIONS.VENDOR_SAFE_READY) ||
       action === normalizeAction_(ACTIONS.APPROVE_MARGIN) ||
       action === normalizeAction_(ACTIONS.PREPARE_QUOTE) ||
-      action === normalizeAction_(ACTIONS.APPROVE_QUOTE);
+      action === normalizeAction_(ACTIONS.APPROVE_QUOTE) ||
+      action === normalizeAction_(ACTIONS.SEND_QUOTE);
   }
 
   function normalizeAction_(actionKey) {
