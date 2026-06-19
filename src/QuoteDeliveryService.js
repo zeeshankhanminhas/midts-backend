@@ -9,6 +9,7 @@ var MidtsQuoteDeliveryService = (function () {
   function sendQuoteSendEmail(leadId) {
     var leadResult = MidtsSheetService.findLeadById(leadId);
     if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
+    if (!isClientDeliveryEnabled_()) return { ok: false, message: 'Client quote delivery is disabled until a client-specific quote document is available.' };
     if (!isReadyToSend_(leadResult.lead)) return { ok: false, message: 'Lead is not ready to send an approved quote.' };
 
     var url = MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.SEND_QUOTE);
@@ -40,6 +41,7 @@ var MidtsQuoteDeliveryService = (function () {
       var leadResult = MidtsSheetService.findLeadById(leadId);
       if (!leadResult) return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
       var lead = leadResult.lead;
+      if (!isClientDeliveryEnabled_()) return { ok: false, code: 'CLIENT_QUOTE_DOCUMENT_NOT_READY', message: 'Client delivery is disabled until a client-specific quote document is available.' };
       if (!isReadyToSend_(lead)) return { ok: false, code: 'QUOTE_NOT_READY_TO_SEND', message: 'Quote must be approved before it can be sent.' };
       if (!String(lead['Email'] || '').trim()) return { ok: false, code: 'CLIENT_EMAIL_MISSING', message: 'Client email is required before sending the quote.' };
 
@@ -251,6 +253,10 @@ var MidtsQuoteDeliveryService = (function () {
       return { 'Lifecycle Status': 'Quote Revision', 'Next Action': 'Review client feedback', 'Next Action Due': new Date(), 'Quote Status': 'Revision Requested', 'Final Outcome': '' };
     }
     return { 'Lifecycle Status': 'Quote Declined', 'Next Action': 'Review client feedback', 'Next Action Due': new Date(), 'Quote Status': 'Declined', 'Final Outcome': 'Quote Declined', 'Close Reason': 'Client declined quote', 'Closed At': new Date() };
+  }
+
+  function isClientDeliveryEnabled_() {
+    return String(MidtsConfig.getScriptProperty('QUOTE_CLIENT_DELIVERY_ENABLED') || '').toLowerCase() === 'true';
   }
 
   function isReadyToSend_(lead) {
