@@ -70,6 +70,8 @@ var MidtsQuoteDeliveryService = (function () {
       var lead = leadResult.lead;
       if (!isClientDeliveryEnabled_()) return { ok: false, code: 'CLIENT_QUOTE_DOCUMENT_NOT_READY', message: 'Client delivery is disabled until a client-specific quote document is available.' };
       if (!isReadyToSend_(lead)) return { ok: false, code: 'QUOTE_NOT_READY_TO_SEND', message: 'Quote must be approved before it can be sent.' };
+      var approvedSnapshot = MidtsDocumentService.getApprovedQuoteSnapshot(leadId, lead['Quote Reference']);
+      if (!approvedSnapshot) return { ok: false, code: 'QUOTE_SNAPSHOT_NOT_APPROVED', message: 'An approved quote snapshot is required before client delivery.' };
       if (!String(lead['Email'] || '').trim()) return { ok: false, code: 'CLIENT_EMAIL_MISSING', message: 'Client email is required before sending the quote.' };
 
       var now = new Date();
@@ -108,6 +110,7 @@ var MidtsQuoteDeliveryService = (function () {
         'Reviewer': sender || 'Email Approval',
         'Last Updated At': new Date()
       });
+      MidtsDocumentService.markQuoteSnapshotSent(leadId, lead['Quote Reference'], lead['Email']);
       MidtsLogger.logWebhookAttempt({
         requestId: responseId,
         outcome: 'quote_sent_to_client',
