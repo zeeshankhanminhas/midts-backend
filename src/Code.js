@@ -44,6 +44,7 @@ function setupLaunchSheets() {
   result.vendorRequestsSheet = 'Vendor Requests';
   result.pipelineSheet = MidtsPipelineService.ensurePipelineSheet();
   result.quoteResponsesSheet = MidtsQuoteDeliveryService.ensureQuoteResponseSheet();
+  result.documentsSheet = MidtsDocumentService.ensureDocumentsSheet();
   MidtsPipelineService.refresh();
   return result;
 }
@@ -221,6 +222,10 @@ function testWorkflowActionUrls() {
 function testWorkflowActionEmail() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
+}
+
+function testDocumentsSheet() {
+  return MidtsDocumentService.ensureDocumentsSheet();
 }
 
 function testQuoteSendEmail() {
