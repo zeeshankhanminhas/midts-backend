@@ -31,6 +31,33 @@ var MidtsQuoteDeliveryService = (function () {
     }
   }
 
+  function sendQuoteAccessEmail(leadId) {
+    var leadResult = MidtsSheetService.findLeadById(leadId);
+    if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
+    var lead = leadResult.lead;
+    if (String(lead['Quote Status'] || '') !== 'Sent' || !String(lead['Quote Document Link'] || '').trim()) {
+      return { ok: false, message: 'A sent quote with a document link is required.' };
+    }
+
+    var subject = 'MIDTS quote access - ' + (lead['Quote Reference'] || '');
+    var quoteUrl = lead['Quote Document Link'];
+    try {
+      MailApp.sendEmail({
+        to: lead['Email'],
+        bcc: getIntakeEmail_(),
+        replyTo: getIntakeEmail_(),
+        name: 'MIDTS',
+        subject: subject,
+        body: 'Your MIDTS quote is available.\n\nView quote: ' + quoteUrl,
+        htmlBody: quoteAccessHtml_(quoteUrl)
+      });
+      MidtsSheetService.appendEmailLog([new Date(), leadId, lead['Submission ID'] || '', lead['Email'], getIntakeEmail_(), subject, 'sent', 'Quote access email resent without changing client response state']);
+      return { ok: true, status: 'sent' };
+    } catch (error) {
+      return { ok: false, message: errorMessage_(error) };
+    }
+  }
+
   function sendQuoteToClient(leadId, sender) {
     var lock = LockService.getScriptLock();
     var locked = false;
@@ -203,7 +230,7 @@ var MidtsQuoteDeliveryService = (function () {
           '<p>Hello ' + escapeHtml_(lead['Full Name'] || '') + ',</p>',
           '<p>Your MIDTS quote is ready.</p>',
           '<p><strong>Quote reference:</strong> ' + escapeHtml_(response['Quote Reference'] || '') + '</p>',
-          '<p><a href="' + escapeHtml_(quoteUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">View quote</a></p>',
+          quoteAccessHtml_(quoteUrl),
           '<p><a href="' + escapeHtml_(acceptUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Accept quote</a> ',
           '<a href="' + escapeHtml_(reviseUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Request changes</a> ',
           '<a href="' + escapeHtml_(declineUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Decline quote</a></p>',
@@ -239,6 +266,11 @@ var MidtsQuoteDeliveryService = (function () {
     } catch (error) {
       console.log('Client response notification failed: ' + errorMessage_(error));
     }
+  }
+
+  function quoteAccessHtml_(quoteUrl) {
+    return '<p><a href="' + escapeHtml_(quoteUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">View quote</a></p>' +
+      '<p style="font-size:12px;word-break:break-all">If the button does not open, use this direct link:<br><a href="' + escapeHtml_(quoteUrl) + '">' + escapeHtml_(quoteUrl) + '</a></p>';
   }
 
   function responseUrl_(responseId, token, outcome) {
@@ -348,6 +380,7 @@ var MidtsQuoteDeliveryService = (function () {
   return {
     ensureQuoteResponseSheet: ensureQuoteResponseSheet,
     sendQuoteSendEmail: sendQuoteSendEmail,
+    sendQuoteAccessEmail: sendQuoteAccessEmail,
     sendQuoteToClient: sendQuoteToClient,
     renderClientResponse: renderClientResponse,
     handleClientResponse: handleClientResponse
