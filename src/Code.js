@@ -228,6 +228,11 @@ function testQuoteSendEmail() {
   return MidtsQuoteDeliveryService.sendQuoteSendEmail(leadId);
 }
 
+function testQuoteAccessEmail() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsQuoteDeliveryService.sendQuoteAccessEmail(leadId);
+}
+
 function testVendorPricingRequestSetupEmail() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   var result = MidtsVendorRequestService.sendRequestSetupEmail(leadId);
