@@ -269,8 +269,7 @@ var MidtsQuoteDeliveryService = (function () {
   }
 
   function quoteAccessHtml_(quoteUrl) {
-    return '<p><a href="' + escapeHtml_(quoteUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">View quote</a></p>' +
-      '<p style="font-size:12px;word-break:break-all">If the button does not open, use this direct link:<br><a href="' + escapeHtml_(quoteUrl) + '">' + escapeHtml_(quoteUrl) + '</a></p>';
+    return '<p><strong>View quote:</strong><br><a href="' + escapeHtml_(quoteUrl) + '" style="word-break:break-all">' + escapeHtml_(quoteUrl) + '</a></p>';
   }
 
   function responseUrl_(responseId, token, outcome) {
