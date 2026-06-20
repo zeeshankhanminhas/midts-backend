@@ -22,6 +22,8 @@ var MidtsQuoteService = (function () {
     }
 
     var quoteReference = existingLead.lead['Quote Reference'] || latestPricing.pricing['Quote Reference'] || createQuoteReference_();
+    existingLead.lead['Quote Reference'] = quoteReference;
+    var quoteSnapshot = MidtsDocumentService.createQuoteSnapshot(existingLead.lead, latestPricing.pricing);
     var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
     var now = new Date();
     var preparedBy = preparer || 'Apps Script Test';
@@ -47,6 +49,7 @@ var MidtsQuoteService = (function () {
         pricingId: latestPricing.pricing['Pricing ID'],
         quoteReference: quoteReference,
         quoteDocumentLink: quoteDocumentLink,
+        quoteSnapshotId: quoteSnapshot.documentId,
         clientQuoteAmount: latestPricing.pricing['Client Quote Amount'] || '',
         preparedBy: preparedBy
       },
@@ -64,6 +67,7 @@ var MidtsQuoteService = (function () {
       lifecycleStatus: 'Quote Draft',
       nextAction: 'Review quote draft',
       quoteDocumentLink: quoteDocumentLink,
+      quoteSnapshotId: quoteSnapshot.documentId,
       clientQuoteAmount: latestPricing.pricing['Client Quote Amount'] || ''
     };
   }
@@ -142,6 +146,10 @@ var MidtsQuoteService = (function () {
 
     var now = new Date();
     var approvedBy = approver || 'Apps Script Test';
+    var snapshotApproval = MidtsDocumentService.approveQuoteSnapshot(leadId, existingLead.lead['Quote Reference'], approvedBy);
+    if (!snapshotApproval.ok) {
+      return { ok: false, code: 'QUOTE_SNAPSHOT_NOT_FOUND', message: snapshotApproval.message };
+    }
     var updatedLead = MidtsSheetService.updateLeadById(leadId, {
       'Lifecycle Status': 'Quote Approved',
       'Next Action': 'Send quote to client',
