@@ -115,10 +115,10 @@ var MidtsDocumentService = (function () {
   }
 
   function buildQuoteSnapshot_(lead, pricing, now) {
-    var total = formatMoney_(pricing['Client Quote Amount'], pricing['Vendor Currency']);
+    var currency = String(pricing['Client Quote Currency'] || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').toUpperCase();
+    var total = formatMoney_(pricing['Client Quote Amount'], currency);
     if (!total) throw new Error('Client quote amount is required to create a quote snapshot.');
 
-    var currency = String(pricing['Vendor Currency'] || 'GBP').toUpperCase();
     var validityDays = Number(MidtsConfig.getScriptProperty('QUOTE_VALIDITY_DAYS') || 30);
     if (!isFinite(validityDays) || validityDays < 1) validityDays = 30;
     return {
