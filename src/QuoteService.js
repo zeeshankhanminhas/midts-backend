@@ -145,7 +145,7 @@ var MidtsQuoteService = (function () {
     if (!leadGuard.ok) return leadGuard;
 
     var quoteReference = existingLead.lead['Quote Reference'];
-    var sourceQuoteUrl = existingLead.lead['Quote Document Link'];
+    var sourceQuoteUrl = withDocumentStatus_(existingLead.lead['Quote Document Link'], 'approved');
     var now = new Date();
     var approvedBy = approver || 'Apps Script Test';
     var snapshotApproval = MidtsDocumentService.approveQuoteSnapshot(leadId, quoteReference, approvedBy);
@@ -267,8 +267,16 @@ var MidtsQuoteService = (function () {
       'currency=' + encodeURIComponent(currency),
       'issued=' + encodeURIComponent(Utilities.formatDate(new Date(), 'Europe/London', 'd MMMM yyyy')),
       'validity=' + encodeURIComponent(validityDays + ' Days From Issue'),
-      'vat=' + encodeURIComponent(MidtsConfig.getScriptProperty('QUOTE_VAT_TEXT') || 'Subject to VAT where applicable')
+      'vat=' + encodeURIComponent(MidtsConfig.getScriptProperty('QUOTE_VAT_TEXT') || 'Subject to VAT where applicable'),
+      'status=draft'
     ].join('&');
+  }
+
+  function withDocumentStatus_(url, status) {
+    var source = String(url || '').trim();
+    if (!source) return '';
+    if (/[?&]status=/.test(source)) return source.replace(/([?&]status=)[^&]*/, '$1' + encodeURIComponent(status));
+    return source + (source.indexOf('?') === -1 ? '?' : '&') + 'status=' + encodeURIComponent(status);
   }
 
   function formatQuoteAmount_(value, currency) {
