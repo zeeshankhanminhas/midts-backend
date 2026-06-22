@@ -144,29 +144,45 @@ var MidtsQuoteService = (function () {
     var leadGuard = guardLeadReadyForQuoteApproval_(existingLead.lead);
     if (!leadGuard.ok) return leadGuard;
 
+    var quoteReference = existingLead.lead['Quote Reference'];
+    var sourceQuoteUrl = existingLead.lead['Quote Document Link'];
     var now = new Date();
     var approvedBy = approver || 'Apps Script Test';
-    var snapshotApproval = MidtsDocumentService.approveQuoteSnapshot(leadId, existingLead.lead['Quote Reference'], approvedBy);
+    var snapshotApproval = MidtsDocumentService.approveQuoteSnapshot(leadId, quoteReference, approvedBy);
     if (!snapshotApproval.ok) {
       return { ok: false, code: 'QUOTE_SNAPSHOT_NOT_FOUND', message: snapshotApproval.message };
     }
+
+    var renderResult = MidtsPdfRenderService.renderApprovedQuotePdf(leadId, quoteReference, sourceQuoteUrl);
+    if (!renderResult.ok) {
+      return { ok: false, code: 'QUOTE_PDF_RENDER_FAILED', message: renderResult.message };
+    }
+
+    var documentResult = MidtsDocumentService.attachQuotePdf(leadId, quoteReference, renderResult.driveFileId, renderResult.driveUrl);
+    if (!documentResult.ok) {
+      return { ok: false, code: 'QUOTE_PDF_AUDIT_FAILED', message: documentResult.message };
+    }
+
     var updatedLead = MidtsSheetService.updateLeadById(leadId, {
       'Lifecycle Status': 'Quote Approved',
       'Next Action': 'Send quote to client',
       'Next Action Due': now,
       'Quote Status': 'Approved to Send',
+      'Quote Document Link': documentResult.driveUrl,
       'Reviewer': approvedBy,
       'Last Updated At': now
     });
 
     MidtsLogger.logWebhookAttempt({
       requestId: 'QUOTE-APPROVAL-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
-      outcome: 'quote_approved',
-      message: 'Quote draft approved; ready to send to client',
+      outcome: 'quote_approved_pdf_generated',
+      message: 'Quote draft approved and PDF generated in Drive',
       payload: {
         leadId: leadId,
         quoteReference: updatedLead.lead['Quote Reference'] || '',
-        quoteDocumentLink: updatedLead.lead['Quote Document Link'] || '',
+        documentId: documentResult.documentId,
+        driveFileId: documentResult.driveFileId,
+        driveUrl: documentResult.driveUrl,
         approvedBy: approvedBy
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
@@ -178,7 +194,7 @@ var MidtsQuoteService = (function () {
       ok: true,
       leadId: leadId,
       quoteReference: updatedLead.lead['Quote Reference'] || '',
-      quoteDocumentLink: updatedLead.lead['Quote Document Link'] || '',
+      quoteDocumentLink: documentResult.driveUrl,
       quoteStatus: 'Approved to Send',
       lifecycleStatus: 'Quote Approved',
       nextAction: 'Send quote to client'
@@ -201,22 +217,11 @@ var MidtsQuoteService = (function () {
   function guardLeadHasQuoteDraft_(lead) {
     var quoteStatus = String(lead['Quote Status'] || '').trim();
     var lifecycleStatus = String(lead['Lifecycle Status'] || '').trim();
-    var allowedQuoteStatuses = {
-      'Draft Prepared': true,
-      'Approved to Send': true,
-      'Sent': true
-    };
-    var allowedLifecycleStatuses = {
-      'Quote Draft': true,
-      'Quote Approved': true,
-      'Quote Sent': true
-    };
-
-    if (!allowedQuoteStatuses[quoteStatus] || !allowedLifecycleStatuses[lifecycleStatus]) {
+    if (quoteStatus !== 'Draft Prepared' || lifecycleStatus !== 'Quote Draft') {
       return {
         ok: false,
         code: 'QUOTE_DRAFT_NOT_AVAILABLE',
-        message: 'Quote document link can only be refreshed after quote draft preparation. Current Quote Status: ' + quoteStatus + '; Lifecycle Status: ' + lifecycleStatus + '.'
+        message: 'Quote source link can only be refreshed while the quote is in draft. Current Quote Status: ' + quoteStatus + '; Lifecycle Status: ' + lifecycleStatus + '.'
       };
     }
     return { ok: true };
