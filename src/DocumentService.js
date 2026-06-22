@@ -40,7 +40,11 @@ var MidtsDocumentService = (function () {
   function approveQuoteSnapshot(leadId, quoteReference, approver) {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
     if (!document) return { ok: false, message: 'No quote snapshot exists for this lead and quote reference.' };
-    if (String(document.record['Status'] || '') === 'Approved') return { ok: true, alreadyApproved: true, documentId: document.record['Document ID'] };
+
+    var status = String(document.record['Status'] || '');
+    if (status === 'Approved' || status === 'PDF Generated' || status === 'Sent') {
+      return { ok: true, alreadyApproved: true, documentId: document.record['Document ID'] };
+    }
 
     var now = new Date();
     updateDocument_(document, {
@@ -58,9 +62,44 @@ var MidtsDocumentService = (function () {
     return document;
   }
 
+  function attachQuotePdf(leadId, quoteReference, driveFileId, driveUrl) {
+    var document = findLatestQuoteSnapshot_(leadId, quoteReference);
+    if (!document) return { ok: false, message: 'Quote snapshot not found.' };
+
+    var status = String(document.record['Status'] || '');
+    if (status === 'PDF Generated' || status === 'Sent') {
+      return {
+        ok: true,
+        alreadyAttached: true,
+        documentId: document.record['Document ID'],
+        driveFileId: document.record['Drive File ID'],
+        driveUrl: document.record['Drive URL']
+      };
+    }
+    if (status !== 'Approved') {
+      return { ok: false, message: 'Quote snapshot must be approved before a PDF can be attached.' };
+    }
+    if (!driveFileId || !driveUrl) return { ok: false, message: 'PDF Drive file details are required.' };
+
+    updateDocument_(document, {
+      'Status': 'PDF Generated',
+      'Drive File ID': driveFileId,
+      'Drive URL': driveUrl,
+      'Last Updated At': new Date()
+    });
+    return { ok: true, documentId: document.record['Document ID'], driveFileId: driveFileId, driveUrl: driveUrl };
+  }
+
+  function getClientReadyQuoteSnapshot(leadId, quoteReference) {
+    var document = findLatestQuoteSnapshot_(leadId, quoteReference);
+    var status = document && String(document.record['Status'] || '');
+    if (!document || (status !== 'PDF Generated' && status !== 'Sent') || !String(document.record['Drive File ID'] || '').trim()) return null;
+    return document;
+  }
+
   function markQuoteSnapshotSent(leadId, quoteReference, recipient) {
-    var document = getApprovedQuoteSnapshot(leadId, quoteReference);
-    if (!document) return { ok: false, message: 'Approved quote snapshot not found.' };
+    var document = getClientReadyQuoteSnapshot(leadId, quoteReference);
+    if (!document) return { ok: false, message: 'Generated quote PDF not found.' };
     updateDocument_(document, {
       'Status': 'Sent',
       'Sent At': new Date(),
@@ -199,6 +238,8 @@ var MidtsDocumentService = (function () {
     createQuoteSnapshot: createQuoteSnapshot,
     approveQuoteSnapshot: approveQuoteSnapshot,
     getApprovedQuoteSnapshot: getApprovedQuoteSnapshot,
+    attachQuotePdf: attachQuotePdf,
+    getClientReadyQuoteSnapshot: getClientReadyQuoteSnapshot,
     markQuoteSnapshotSent: markQuoteSnapshotSent
   };
 })();
