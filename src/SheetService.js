@@ -103,7 +103,8 @@ var MidtsSheetService = (function () {
     'Latest Revision',
     'Revision Reason',
     'Notes',
-    'Last Updated At'
+    'Last Updated At',
+    'Client Quote Currency'
   ];
 
   var LOG_HEADERS = [
