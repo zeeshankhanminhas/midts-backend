@@ -245,10 +245,11 @@ var MidtsQuoteService = (function () {
 
   function buildQuoteDocumentLink_(quoteReference, leadId, lead, pricing) {
     var templateUrl = MidtsConfig.getScriptProperty('QUOTE_TEMPLATE_URL');
-    var total = formatQuoteAmount_(pricing && pricing['Client Quote Amount'], pricing && pricing['Vendor Currency']);
+    var clientCurrency = String(pricing && pricing['Client Quote Currency'] || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').toUpperCase();
+    var total = formatQuoteAmount_(pricing && pricing['Client Quote Amount'], clientCurrency);
     if (!templateUrl || !total) return '';
 
-    var currency = String(pricing && pricing['Vendor Currency'] || 'GBP').toUpperCase();
+    var currency = clientCurrency;
     var validityDays = Number(MidtsConfig.getScriptProperty('QUOTE_VALIDITY_DAYS') || 30);
     if (!isFinite(validityDays) || validityDays < 1) validityDays = 30;
     var scope = String(lead && lead['Brief Requirement'] || 'Engineering support in line with the agreed project scope.')
