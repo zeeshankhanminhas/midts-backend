@@ -25,9 +25,8 @@ The service only accepts URLs beginning with `ALLOWED_QUOTE_PREFIX`.
 From the `renderer` directory after authenticating with Google Cloud:
 
 ```bash
-gcloud builds submit --tag gcr.io/PROJECT_ID/midts-pdf-renderer
 gcloud run deploy midts-pdf-renderer \
-  --image gcr.io/PROJECT_ID/midts-pdf-renderer \
+  --source . \
   --region europe-west2 \
   --no-allow-unauthenticated \
   --min-instances 0 \
