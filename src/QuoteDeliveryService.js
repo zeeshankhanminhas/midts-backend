@@ -15,7 +15,6 @@ var MidtsQuoteDeliveryService = (function () {
     var url = MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.SEND_QUOTE);
     var subject = 'Send approved quote to client - ' + leadId;
     try {
-      var pdfFile = DriveApp.getFileById(approvedSnapshot.record['Drive File ID']);
       MailApp.sendEmail({
         to: getIntakeEmail_(),
         name: 'MIDTS Backend',
@@ -213,6 +212,7 @@ var MidtsQuoteDeliveryService = (function () {
     var reviseUrl = responseUrl_(response['Response ID'], rawToken, 'request-changes');
     var subject = 'Your MIDTS quote - ' + (response['Quote Reference'] || '');
     try {
+      var pdfFile = DriveApp.getFileById(approvedSnapshot.record['Drive File ID']);
       MailApp.sendEmail({
         to: response['Client Email'],
         bcc: getIntakeEmail_(),
@@ -237,7 +237,7 @@ var MidtsQuoteDeliveryService = (function () {
           '<p>Hello ' + escapeHtml_(lead['Full Name'] || '') + ',</p>',
           '<p>Your MIDTS quote is ready.</p>',
           '<p><strong>Quote reference:</strong> ' + escapeHtml_(response['Quote Reference'] || '') + '</p>',
-          quoteAccessHtml_(quoteUrl),
+          '<p>The approved quote PDF is attached to this email.</p>',
           '<p><a href="' + escapeHtml_(acceptUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Accept quote</a> ',
           '<a href="' + escapeHtml_(reviseUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Request changes</a> ',
           '<a href="' + escapeHtml_(declineUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Decline quote</a></p>',
