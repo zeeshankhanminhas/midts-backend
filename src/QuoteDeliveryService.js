@@ -15,6 +15,7 @@ var MidtsQuoteDeliveryService = (function () {
     var url = MidtsWorkflowActionService.buildActionUrl(leadId, MidtsWorkflowActionService.ACTIONS.SEND_QUOTE);
     var subject = 'Send approved quote to client - ' + leadId;
     try {
+      var pdfFile = DriveApp.getFileById(approvedSnapshot.record['Drive File ID']);
       MailApp.sendEmail({
         to: getIntakeEmail_(),
         name: 'MIDTS Backend',
@@ -35,21 +36,23 @@ var MidtsQuoteDeliveryService = (function () {
     var leadResult = MidtsSheetService.findLeadById(leadId);
     if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
     var lead = leadResult.lead;
-    if (String(lead['Quote Status'] || '') !== 'Sent' || !String(lead['Quote Document Link'] || '').trim()) {
-      return { ok: false, message: 'A sent quote with a document link is required.' };
+    var pdfDocument = MidtsDocumentService.getClientReadyQuoteSnapshot(leadId, lead['Quote Reference']);
+    if (String(lead['Quote Status'] || '') !== 'Sent' || !pdfDocument) {
+      return { ok: false, message: 'A sent quote with a generated PDF is required.' };
     }
 
-    var subject = 'MIDTS quote access - ' + (lead['Quote Reference'] || '');
-    var quoteUrl = lead['Quote Document Link'];
+    var subject = 'MIDTS quote - ' + (lead['Quote Reference'] || '');
     try {
+      var pdfFile = DriveApp.getFileById(pdfDocument.record['Drive File ID']);
       MailApp.sendEmail({
         to: lead['Email'],
         bcc: getIntakeEmail_(),
         replyTo: getIntakeEmail_(),
         name: 'MIDTS',
         subject: subject,
-        body: 'Your MIDTS quote is available.\n\nView quote: ' + quoteUrl,
-        htmlBody: quoteAccessHtml_(quoteUrl)
+        body: 'Your MIDTS quote is attached.\n\nQuote reference: ' + (lead['Quote Reference'] || '') + '\n\nMIDTS',
+        htmlBody: '<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:640px"><p>Your approved MIDTS quote is attached.</p><p><strong>Quote reference:</strong> ' + escapeHtml_(lead['Quote Reference'] || '') + '</p><p>MIDTS</p></div>',
+        attachments: [pdfFile.getBlob()]
       });
       MidtsSheetService.appendEmailLog([new Date(), leadId, lead['Submission ID'] || '', lead['Email'], getIntakeEmail_(), subject, 'sent', 'Quote access email resent without changing client response state']);
       return { ok: true, status: 'sent' };
@@ -70,8 +73,8 @@ var MidtsQuoteDeliveryService = (function () {
       var lead = leadResult.lead;
       if (!isClientDeliveryEnabled_()) return { ok: false, code: 'CLIENT_QUOTE_DOCUMENT_NOT_READY', message: 'Client delivery is disabled until a client-specific quote document is available.' };
       if (!isReadyToSend_(lead)) return { ok: false, code: 'QUOTE_NOT_READY_TO_SEND', message: 'Quote must be approved before it can be sent.' };
-      var approvedSnapshot = MidtsDocumentService.getApprovedQuoteSnapshot(leadId, lead['Quote Reference']);
-      if (!approvedSnapshot) return { ok: false, code: 'QUOTE_SNAPSHOT_NOT_APPROVED', message: 'An approved quote snapshot is required before client delivery.' };
+      var approvedSnapshot = MidtsDocumentService.getClientReadyQuoteSnapshot(leadId, lead['Quote Reference']);
+      if (!approvedSnapshot) return { ok: false, code: 'QUOTE_PDF_NOT_READY', message: 'A generated approved quote PDF is required before client delivery.' };
       if (!String(lead['Email'] || '').trim()) return { ok: false, code: 'CLIENT_EMAIL_MISSING', message: 'Client email is required before sending the quote.' };
 
       var now = new Date();
@@ -93,7 +96,7 @@ var MidtsQuoteDeliveryService = (function () {
       };
       appendResponse_(response);
 
-      var emailResult = emailClientQuote_(response, lead, rawToken);
+      var emailResult = emailClientQuote_(response, lead, rawToken, approvedSnapshot);
       var savedResponse = findResponseById_(responseId);
       if (!emailResult.ok) {
         updateResponse_(savedResponse, { 'Response Status': 'Send Failed', 'Last Updated At': new Date() });
@@ -200,9 +203,10 @@ var MidtsQuoteDeliveryService = (function () {
     return { ok: true, result: result, record: result.record };
   }
 
-  function emailClientQuote_(response, lead, rawToken) {
-    var quoteUrl = String(lead['Quote Document Link'] || '').trim();
-    if (!quoteUrl) return { ok: false, message: 'Quote document link is missing.' };
+  function emailClientQuote_(response, lead, rawToken, approvedSnapshot) {
+    if (!approvedSnapshot || !String(approvedSnapshot.record['Drive File ID'] || '').trim()) {
+      return { ok: false, message: 'Generated quote PDF is missing.' };
+    }
 
     var acceptUrl = responseUrl_(response['Response ID'], rawToken, 'accept');
     var declineUrl = responseUrl_(response['Response ID'], rawToken, 'decline');
@@ -220,7 +224,7 @@ var MidtsQuoteDeliveryService = (function () {
           '',
           'Your MIDTS quote is ready.',
           'Quote reference: ' + (response['Quote Reference'] || ''),
-          'View quote: ' + quoteUrl,
+          'The approved quote PDF is attached to this email.',
           '',
           'Accept quote: ' + acceptUrl,
           'Request changes: ' + reviseUrl,
@@ -238,7 +242,8 @@ var MidtsQuoteDeliveryService = (function () {
           '<a href="' + escapeHtml_(reviseUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Request changes</a> ',
           '<a href="' + escapeHtml_(declineUrl) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Decline quote</a></p>',
           '<p>MIDTS</p></div>'
-        ].join('')
+        ].join(''),
+        attachments: [pdfFile.getBlob()]
       });
       MidtsSheetService.appendEmailLog([new Date(), response['Lead ID'], '', response['Client Email'], getIntakeEmail_(), subject, 'sent', 'Approved quote sent to client']);
       return { ok: true };
