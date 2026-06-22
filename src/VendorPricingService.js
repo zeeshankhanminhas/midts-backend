@@ -66,6 +66,13 @@ var MidtsVendorPricingService = (function () {
 
     var guardResult = guardLeadReadyForPricing_(existingLead.lead);
     if (!guardResult.ok) return guardResult;
+    if (normalized.vendorCurrency !== normalized.clientQuoteCurrency) {
+      return {
+        ok: false,
+        code: 'CURRENCY_CONVERSION_REQUIRED',
+        message: 'Automatic quote generation supports matching vendor and client currencies only. Obtain a human-approved converted client price before proceeding.'
+      };
+    }
 
     var now = new Date();
     var quoteReference = existingLead.lead['Quote Reference'] || createQuoteReference_(now);
@@ -94,7 +101,8 @@ var MidtsVendorPricingService = (function () {
       'Yes',
       normalized.revisionReason,
       normalized.notes,
-      now
+      now,
+      normalized.clientQuoteCurrency
     ]);
 
     var updatedLead = MidtsSheetService.updateLeadById(normalized.leadId, {
@@ -119,6 +127,7 @@ var MidtsVendorPricingService = (function () {
         quoteReference: quoteReference,
         vendorCost: normalized.vendorCost,
         vendorCurrency: normalized.vendorCurrency,
+        clientQuoteCurrency: normalized.clientQuoteCurrency,
         marginType: calculated.marginType,
         marginValue: calculated.marginValue,
         clientQuoteAmount: calculated.clientQuoteAmount,
@@ -136,6 +145,7 @@ var MidtsVendorPricingService = (function () {
       quoteReference: quoteReference,
       vendorCost: normalized.vendorCost,
       vendorCurrency: normalized.vendorCurrency,
+      clientQuoteCurrency: normalized.clientQuoteCurrency,
       marginType: calculated.marginType,
       marginValue: calculated.marginValue,
       midtsProfitAmount: calculated.midtsProfitAmount,
@@ -263,7 +273,8 @@ var MidtsVendorPricingService = (function () {
       vendorName: payload.vendorName || payload.vendor_name || '',
       vendorEmail: payload.vendorEmail || payload.vendor_email || '',
       vendorCost: parseMoney_(payload.vendorCost || payload.vendor_cost),
-      vendorCurrency: payload.vendorCurrency || payload.vendor_currency || 'GBP',
+      vendorCurrency: String(payload.vendorCurrency || payload.vendor_currency || 'GBP').trim().toUpperCase(),
+      clientQuoteCurrency: String(payload.clientQuoteCurrency || payload.client_quote_currency || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').trim().toUpperCase(),
       marginType: payload.marginType || payload.margin_type || getDefaultMarginType_(),
       marginValue: parseMoney_(payload.marginValue || payload.margin_value || getDefaultMarginValue_()),
       revisionReason: payload.revisionReason || payload.revision_reason || 'Initial vendor pricing',
