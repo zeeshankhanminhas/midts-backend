@@ -147,6 +147,19 @@ function testLifecycleIntakeWithSamplePost() {
   });
 }
 
+function testTechnicalReviewQualified() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsTechnicalReviewService.recordReview({
+    leadId: leadId,
+    reviewer: 'Apps Script Test',
+    reviewSummary: 'Technical review completed for lifecycle validation.',
+    fileReview: ['Technical inputs reviewed for scope completeness.'],
+    risks: ['Confirm final source data before work commences.'],
+    clarifications: ['No additional clarification required for this test record.'],
+    recommendation: 'Qualified'
+  });
+}
+
 function testDecisionQualified() {
   return testDecision_('qualified');
 }
