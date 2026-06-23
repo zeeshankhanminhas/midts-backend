@@ -46,6 +46,9 @@ var MidtsDecisionService = (function () {
     var guardResult = guardExistingDecision_(existing, normalizedDecision, decisionLabel, reviewer);
     if (guardResult) return guardResult;
 
+    var technicalReviewGuard = guardTechnicalReview_(existing, normalizedDecision);
+    if (technicalReviewGuard) return technicalReviewGuard;
+
     var now = new Date();
     var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now, existing.lead);
     var updatedLead = MidtsSheetService.updateLeadById(leadId, updates);
@@ -82,6 +85,38 @@ var MidtsDecisionService = (function () {
       outcomeEmailStatus: outcomeEmailResult.status,
       updates: updates
     };
+  }
+
+  function guardTechnicalReview_(existing, decisionKey) {
+    if (decisionKey === 'nurture') return null;
+
+    var lead = existing.lead;
+    var reviewResult = MidtsSheetService.findLatestTechnicalReviewByLeadId(lead['Lead ID']);
+    if (!reviewResult) {
+      return {
+        ok: false,
+        blocked: true,
+        leadId: lead['Lead ID'],
+        message: 'A completed Technical Review is required before this qualification decision.'
+      };
+    }
+
+    var recommendation = String(reviewResult.review['Recommendation'] || '').trim();
+    var expected = {
+      qualified: 'Qualified',
+      'needs-more-info': 'Needs More Info',
+      'not-suitable': 'Not Suitable'
+    }[decisionKey];
+
+    if (expected && recommendation !== expected) {
+      return {
+        ok: false,
+        blocked: true,
+        leadId: lead['Lead ID'],
+        message: 'Technical Review recommendation is ' + (recommendation || 'blank') + '; it must be ' + expected + ' for this decision.'
+      };
+    }
+    return null;
   }
 
   function guardExistingDecision_(existing, requestedDecisionKey, requestedDecisionLabel, reviewer) {
