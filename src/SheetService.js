@@ -4,6 +4,7 @@ var MidtsSheetService = (function () {
     TECHNICAL_INTAKE: 'Technical Intake',
     TECHNICAL_REVIEWS: 'Technical Reviews',
     VENDOR_SAFE_PACKAGES: 'Vendor Safe Packages',
+    PROJECTS: 'Projects',
     VENDOR_PRICING: 'Vendor Pricing',
     WEBHOOK_LOGS: 'Webhook Logs',
     EMAIL_LOGS: 'Email Logs'
@@ -106,6 +107,11 @@ var MidtsSheetService = (function () {
     'Approved At', 'Last Updated At'
   ];
 
+  var PROJECT_HEADERS = [
+    'Project ID', 'Lead ID', 'Quote Reference', 'Created At', 'Created By',
+    'Project Status', 'Drive Folder URL', 'Source Document ID', 'Last Updated At'
+  ];
+
   var VENDOR_PRICING_HEADERS = [
     'Pricing ID',
     'Lead ID',
@@ -205,6 +211,10 @@ var MidtsSheetService = (function () {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS), VENDOR_PRICING_HEADERS, row);
   }
 
+  function appendProjectRow(row) {
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.PROJECTS, PROJECT_HEADERS), PROJECT_HEADERS, row);
+  }
+
   function appendVendorSafePackageRow(row) {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.VENDOR_SAFE_PACKAGES, VENDOR_SAFE_PACKAGE_HEADERS), VENDOR_SAFE_PACKAGE_HEADERS, row);
   }
@@ -252,6 +262,10 @@ var MidtsSheetService = (function () {
 
   function getVendorSafePackageSheet() {
     return getOrCreateSheet(SHEETS.VENDOR_SAFE_PACKAGES, VENDOR_SAFE_PACKAGE_HEADERS);
+  }
+
+  function getProjectSheet() {
+    return getOrCreateSheet(SHEETS.PROJECTS, PROJECT_HEADERS);
   }
 
   function getHeaderMap(sheet) {
@@ -352,6 +366,18 @@ var MidtsSheetService = (function () {
     var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
     for (var index = rows.length - 1; index >= 0; index -= 1) {
       if (String(rows[index][leadColumn - 1]) === String(leadId)) return { sheet:sheet, rowNumber:index+2, headerMap:headers, vendorSafePackage:rowToObject_(rows[index], headers) };
+    }
+    return null;
+  }
+
+  function findProjectByLeadId(leadId) {
+    var sheet = getProjectSheet();
+    var headers = getHeaderMap(sheet);
+    var leadColumn = headers['Lead ID'];
+    if (!leadColumn || sheet.getLastRow() < 2) return null;
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (var index = rows.length - 1; index >= 0; index -= 1) {
+      if (String(rows[index][leadColumn - 1]) === String(leadId)) return { sheet:sheet, rowNumber:index+2, headerMap:headers, project:rowToObject_(rows[index], headers) };
     }
     return null;
   }
@@ -462,6 +488,7 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
     getOrCreateSheet(SHEETS.TECHNICAL_REVIEWS, TECHNICAL_REVIEW_HEADERS);
     getOrCreateSheet(SHEETS.VENDOR_SAFE_PACKAGES, VENDOR_SAFE_PACKAGE_HEADERS);
+    getOrCreateSheet(SHEETS.PROJECTS, PROJECT_HEADERS);
     getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
@@ -471,6 +498,7 @@ var MidtsSheetService = (function () {
       technicalIntakeSheet: SHEETS.TECHNICAL_INTAKE,
       technicalReviewsSheet: SHEETS.TECHNICAL_REVIEWS,
       vendorSafePackagesSheet: SHEETS.VENDOR_SAFE_PACKAGES,
+      projectsSheet: SHEETS.PROJECTS,
       vendorPricingSheet: SHEETS.VENDOR_PRICING,
       logsSheet: SHEETS.WEBHOOK_LOGS,
       emailLogsSheet: SHEETS.EMAIL_LOGS
@@ -483,6 +511,7 @@ var MidtsSheetService = (function () {
     TECHNICAL_INTAKE_HEADERS: TECHNICAL_INTAKE_HEADERS,
     TECHNICAL_REVIEW_HEADERS: TECHNICAL_REVIEW_HEADERS,
     VENDOR_SAFE_PACKAGE_HEADERS: VENDOR_SAFE_PACKAGE_HEADERS,
+    PROJECT_HEADERS: PROJECT_HEADERS,
     VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
     EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
@@ -490,6 +519,7 @@ var MidtsSheetService = (function () {
     appendTechnicalIntakeRow: appendTechnicalIntakeRow,
     appendTechnicalReviewRow: appendTechnicalReviewRow,
     appendVendorSafePackageRow: appendVendorSafePackageRow,
+    appendProjectRow: appendProjectRow,
     appendVendorPricingRow: appendVendorPricingRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
@@ -499,6 +529,7 @@ var MidtsSheetService = (function () {
     findLatestTechnicalIntakeByLeadId: findLatestTechnicalIntakeByLeadId,
     findLatestTechnicalReviewByLeadId: findLatestTechnicalReviewByLeadId,
     findLatestVendorSafePackageByLeadId: findLatestVendorSafePackageByLeadId,
+    findProjectByLeadId: findProjectByLeadId,
     findLatestVendorPricingByLeadId: findLatestVendorPricingByLeadId,
     findVendorPricingByPricingId: findVendorPricingByPricingId,
     updateLeadById: updateLeadById,
