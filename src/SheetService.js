@@ -385,7 +385,28 @@ var MidtsSheetService = (function () {
     return null;
   }
 
+  function findProjectById(projectId) {
+    return findProjectByColumnValue_('Project ID', projectId);
+  }
+
   function findProjectByLeadId(leadId) {
+    return findProjectByColumnValue_('Lead ID', leadId);
+  }
+
+  function findProjectByColumnValue_(columnName, value) {
+    var sheet = getProjectSheet();
+    var headers = getHeaderMap(sheet);
+    var targetColumn = headers[columnName];
+    if (!targetColumn || sheet.getLastRow() < 2) return null;
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (var index = rows.length - 1; index >= 0; index -= 1) {
+      if (String(rows[index][targetColumn - 1]) === String(value)) return { sheet:sheet, rowNumber:index+2, headerMap:headers, project:rowToObject_(rows[index], headers) };
+    }
+    return null;
+  }
+
+  /* old compatibility body removed */
+  function oldFindProjectByLeadId_(leadId) {
     var sheet = getProjectSheet();
     var headers = getHeaderMap(sheet);
     var leadColumn = headers['Lead ID'];
@@ -560,6 +581,7 @@ var MidtsSheetService = (function () {
     findLatestTechnicalIntakeByLeadId: findLatestTechnicalIntakeByLeadId,
     findLatestTechnicalReviewByLeadId: findLatestTechnicalReviewByLeadId,
     findLatestVendorSafePackageByLeadId: findLatestVendorSafePackageByLeadId,
+    findProjectById: findProjectById,
     findProjectByLeadId: findProjectByLeadId,
     findLatestDeliveryRecordByProjectId: findLatestDeliveryRecordByProjectId,
     findLatestVendorPricingByLeadId: findLatestVendorPricingByLeadId,
