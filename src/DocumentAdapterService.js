@@ -120,6 +120,38 @@ var MidtsDocumentAdapterService = (function () {
     };
   }
 
+  function toTechnicalReviewData(lead, technicalIntake, humanReview, options) {
+    lead = lead || {};
+    technicalIntake = technicalIntake || {};
+    humanReview = humanReview || {};
+    options = options || {};
+    var control = toDocumentControl(lead, 'technicalReview', {
+      reference: options.reference || humanReview['Technical Review ID'] || lead['Lead ID'],
+      revision: options.revision || '1',
+      status: options.status || 'draft',
+      issuedAt: options.issuedAt
+    });
+
+    return {
+      documentType: 'technicalReview',
+      status: control.status,
+      reference: control.reference,
+      preparedFor: control.preparedFor,
+      preparedBy: control.preparedBy,
+      projectReference: String(lead['Lead ID'] || ''),
+      dateIssued: control.dateIssued,
+      revision: control.revision,
+      title: 'Technical Review',
+      reviewSummary: String(humanReview['Review Summary'] || '').trim(),
+      fileReview: parseList_(humanReview['File Review']).map(function (finding) {
+        return { area: 'Technical input', finding: finding, status: 'Reviewed' };
+      }),
+      risks: parseList_(humanReview['Risks']),
+      clarifications: parseList_(humanReview['Clarifications']),
+      recommendation: String(humanReview['Recommendation'] || '').trim()
+    };
+  }
+
   function toEmailPayload(templateKey, lead, quote, project) {
     lead = lead || {};
     quote = quote || {};
@@ -135,6 +167,17 @@ var MidtsDocumentAdapterService = (function () {
       return { templateKey: key, recipient: MidtsConfig.getScriptProperty('INTAKE_EMAIL') || 'midts.systems@gmail.com', subject: 'MIDTS technical review required - ' + leadId, data: { leadId: leadId, clientName: clientName, company: lead['Company'] || '', projectType: lead['Project Type'] || '' } };
     }
     return { templateKey: key, recipient: String(lead['Email'] || lead.email || '').trim(), subject: 'MIDTS enquiry received - ' + leadId, data: { leadId: leadId, clientName: clientName, projectType: lead['Project Type'] || '' } };
+  }
+
+  function parseList_(value) {
+    if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    var text = String(value || '').trim();
+    if (!text) return [];
+    try {
+      var parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+    } catch (error) {}
+    return text.split(/\r?\n|;/).map(function (item) { return item.trim(); }).filter(Boolean);
   }
 
   function status_(value) {
@@ -169,6 +212,7 @@ var MidtsDocumentAdapterService = (function () {
     toDocumentControl: toDocumentControl,
     toRequirementSheetData: toRequirementSheetData,
     toQuoteData: toQuoteData,
+    toTechnicalReviewData: toTechnicalReviewData,
     toEmailPayload: toEmailPayload
   };
 })();
