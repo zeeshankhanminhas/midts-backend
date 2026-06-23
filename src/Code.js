@@ -237,7 +237,7 @@ function testDocumentDataContracts() {
   if (!pricingResult) throw new Error('Vendor pricing not found for lead: ' + leadId);
 
   var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
-  return {
+  var result = {
     control: MidtsDocumentAdapterService.toDocumentControl(leadResult.lead, 'quote', {
       reference: pricingResult.pricing['Quote Reference'] || leadResult.lead['Quote Reference'] || leadId,
       revision: pricingResult.pricing['Quote Revision'] || '1',
@@ -249,6 +249,8 @@ function testDocumentDataContracts() {
       : null,
     email: MidtsDocumentAdapterService.toEmailPayload('quoteIssued', leadResult.lead, pricingResult.pricing, {})
   };
+  console.log(JSON.stringify(result));
+  return result;
 }
 
 function testLeadDriveStructure() {
