@@ -115,18 +115,20 @@ var MidtsDocumentService = (function () {
   }
 
   function buildQuoteSnapshot_(lead, pricing, now) {
-    var currency = String(pricing['Client Quote Currency'] || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').toUpperCase();
-    var total = formatMoney_(pricing['Client Quote Amount'], currency);
-    if (!total) throw new Error('Client quote amount is required to create a quote snapshot.');
+    var renderData = MidtsDocumentAdapterService.toQuoteData(lead, {}, pricing, {
+      status: 'draft',
+      issuedAt: now,
+      revision: String(pricing['Quote Revision'] || '1')
+    });
 
-    var validityDays = Number(MidtsConfig.getScriptProperty('QUOTE_VALIDITY_DAYS') || 30);
-    if (!isFinite(validityDays) || validityDays < 1) validityDays = 30;
     return {
-      schemaVersion: '1.0',
+      schemaVersion: '1.1',
       documentType: 'quote',
-      quoteReference: String(lead['Quote Reference'] || pricing['Quote Reference'] || ''),
-      revision: String(pricing['Quote Revision'] || '1'),
+      quoteReference: renderData.reference,
+      revision: renderData.revision,
       issuedAt: Utilities.formatDate(now, 'Europe/London', 'yyyy-MM-dd'),
+      validUntil: renderData.validUntil,
+      documentStatus: renderData.status,
       client: {
         name: String(lead['Full Name'] || ''),
         company: String(lead['Company'] || '')
@@ -134,35 +136,22 @@ var MidtsDocumentService = (function () {
       project: {
         leadId: String(lead['Lead ID'] || ''),
         type: String(lead['Project Type'] || ''),
-        scope: String(lead['Brief Requirement'] || 'Engineering support in line with the agreed project scope.')
+        scope: renderData.scopeSummary
       },
       commercial: {
-        currency: currency,
-        lineItems: [{
-          item: '01',
-          description: 'Engineering support in line with the quoted project scope.',
-          quantity: '1',
-          rate: total,
-          total: total
-        }],
-        subtotal: total,
-        vat: MidtsConfig.getScriptProperty('QUOTE_VAT_TEXT') || 'Subject to VAT where applicable',
-        total: total,
-        validity: validityDays + ' Days From Issue'
+        currency: renderData.currency,
+        lineItems: renderData.lineItems,
+        subtotal: renderData.totals.subtotal,
+        vat: renderData.totals.vat,
+        total: renderData.totals.total,
+        validity: renderData.validity
       },
       terms: {
-        assumptions: [
-          'Source data and project inputs are supplied before work commences.',
-          'Client review feedback is consolidated into a single controlled response.'
-        ],
-        exclusions: [
-          'Additional revisions outside the agreed scope summary.',
-          'Third-party costs unless separately stated in this quote.'
-        ],
-        paymentTerms: [
-          MidtsConfig.getScriptProperty('QUOTE_PAYMENT_TERMS') || 'Payment terms are 14 days from invoice unless otherwise agreed.'
-        ]
-      }
+        assumptions: renderData.assumptions,
+        exclusions: renderData.exclusions,
+        paymentTerms: renderData.paymentTerms
+      },
+      renderData: renderData
     };
   }
 
