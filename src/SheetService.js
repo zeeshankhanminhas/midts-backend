@@ -210,6 +210,10 @@ var MidtsSheetService = (function () {
     return getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
   }
 
+  function getTechnicalIntakeSheet() {
+    return getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
+  }
+
   function getHeaderMap(sheet) {
     var lastColumn = Math.max(sheet.getLastColumn(), 1);
     var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
@@ -392,6 +396,7 @@ var MidtsSheetService = (function () {
     findLeadById: findLeadById,
     findLeadBySubmissionId: findLeadBySubmissionId,
     findVendorPricingByLeadId: findVendorPricingByLeadId,
+    findLatestTechnicalIntakeByLeadId: findLatestTechnicalIntakeByLeadId,
     findLatestVendorPricingByLeadId: findLatestVendorPricingByLeadId,
     findVendorPricingByPricingId: findVendorPricingByPricingId,
     updateLeadById: updateLeadById,
