@@ -152,6 +152,34 @@ var MidtsDocumentAdapterService = (function () {
     };
   }
 
+  function toCompletionReportData(project, deliveryRecord, options) {
+    project = project || {};
+    deliveryRecord = deliveryRecord || {};
+    options = options || {};
+    var lead = { 'Lead ID': project['Lead ID'] || options.leadId || '', 'Quote Reference': project['Quote Reference'] || '' };
+    var control = toDocumentControl(lead, 'completionReport', {
+      reference: options.reference || deliveryRecord['Delivery Record ID'] || project['Project ID'],
+      revision: options.revision || '1',
+      status: options.status || 'issued',
+      issuedAt: options.issuedAt
+    });
+    return {
+      documentType: 'completionReport',
+      status: control.status,
+      reference: control.reference,
+      preparedFor: control.preparedFor,
+      preparedBy: control.preparedBy,
+      projectReference: String(project['Project ID'] || ''),
+      dateIssued: control.dateIssued,
+      revision: control.revision,
+      title: 'Completion Report',
+      deliverySummary: String(deliveryRecord['Delivery Summary'] || '').trim(),
+      deliveredFiles: parseList_(deliveryRecord['Delivered Files']),
+      clientReviewStatus: String(deliveryRecord['Client Review Status'] || 'Pending client review').trim(),
+      completedAt: deliveryRecord['Completed At'] || ''
+    };
+  }
+
   function toEmailPayload(templateKey, lead, quote, project) {
     lead = lead || {};
     quote = quote || {};
@@ -213,6 +241,7 @@ var MidtsDocumentAdapterService = (function () {
     toRequirementSheetData: toRequirementSheetData,
     toQuoteData: toQuoteData,
     toTechnicalReviewData: toTechnicalReviewData,
+    toCompletionReportData: toCompletionReportData,
     toEmailPayload: toEmailPayload
   };
 })();
