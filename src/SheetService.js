@@ -264,6 +264,26 @@ var MidtsSheetService = (function () {
     return findVendorPricingByColumnValue_('Lead ID', leadId);
   }
 
+  function findLatestTechnicalIntakeByLeadId(leadId) {
+    var sheet = getTechnicalIntakeSheet();
+    var headerMap = getHeaderMap(sheet);
+    var leadColumn = headerMap['Lead ID'];
+    if (!leadColumn || sheet.getLastRow() < 2) return null;
+
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (var index = rows.length - 1; index >= 0; index -= 1) {
+      if (String(rows[index][leadColumn - 1]) === String(leadId)) {
+        return {
+          sheet: sheet,
+          rowNumber: index + 2,
+          headerMap: headerMap,
+          intake: rowToObject_(rows[index], headerMap)
+        };
+      }
+    }
+    return null;
+  }
+
   function findLatestVendorPricingByLeadId(leadId) {
     var rows = findVendorPricingRowsByColumnValue_('Lead ID', leadId);
     if (!rows.length) return null;
