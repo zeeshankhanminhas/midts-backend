@@ -2,6 +2,7 @@ var MidtsSheetService = (function () {
   var SHEETS = {
     LEADS: 'Leads',
     TECHNICAL_INTAKE: 'Technical Intake',
+    TECHNICAL_REVIEWS: 'Technical Reviews',
     VENDOR_PRICING: 'Vendor Pricing',
     WEBHOOK_LOGS: 'Webhook Logs',
     EMAIL_LOGS: 'Email Logs'
@@ -80,6 +81,22 @@ var MidtsSheetService = (function () {
     'Timing Notes',
     'Technical Notes',
     'Raw Payload JSON'
+  ];
+
+  var TECHNICAL_REVIEW_HEADERS = [
+    'Technical Review ID',
+    'Lead ID',
+    'Technical Intake ID',
+    'Created At',
+    'Reviewer',
+    'Review Status',
+    'Review Summary',
+    'File Review',
+    'Risks',
+    'Clarifications',
+    'Recommendation',
+    'Approved At',
+    'Last Updated At'
   ];
 
   var VENDOR_PRICING_HEADERS = [
@@ -181,6 +198,10 @@ var MidtsSheetService = (function () {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS), VENDOR_PRICING_HEADERS, row);
   }
 
+  function appendTechnicalReviewRow(row) {
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.TECHNICAL_REVIEWS, TECHNICAL_REVIEW_HEADERS), TECHNICAL_REVIEW_HEADERS, row);
+  }
+
   function appendWebhookLog(row) {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS), LOG_HEADERS, row);
   }
@@ -212,6 +233,10 @@ var MidtsSheetService = (function () {
 
   function getTechnicalIntakeSheet() {
     return getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
+  }
+
+  function getTechnicalReviewSheet() {
+    return getOrCreateSheet(SHEETS.TECHNICAL_REVIEWS, TECHNICAL_REVIEW_HEADERS);
   }
 
   function getHeaderMap(sheet) {
@@ -278,6 +303,26 @@ var MidtsSheetService = (function () {
           rowNumber: index + 2,
           headerMap: headerMap,
           intake: rowToObject_(rows[index], headerMap)
+        };
+      }
+    }
+    return null;
+  }
+
+  function findLatestTechnicalReviewByLeadId(leadId) {
+    var sheet = getTechnicalReviewSheet();
+    var headerMap = getHeaderMap(sheet);
+    var leadColumn = headerMap['Lead ID'];
+    if (!leadColumn || sheet.getLastRow() < 2) return null;
+
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+    for (var index = rows.length - 1; index >= 0; index -= 1) {
+      if (String(rows[index][leadColumn - 1]) === String(leadId)) {
+        return {
+          sheet: sheet,
+          rowNumber: index + 2,
+          headerMap: headerMap,
+          review: rowToObject_(rows[index], headerMap)
         };
       }
     }
@@ -388,6 +433,7 @@ var MidtsSheetService = (function () {
   function ensureLaunchSheets() {
     getOrCreateSheet(SHEETS.LEADS, LEAD_HEADERS);
     getOrCreateSheet(SHEETS.TECHNICAL_INTAKE, TECHNICAL_INTAKE_HEADERS);
+    getOrCreateSheet(SHEETS.TECHNICAL_REVIEWS, TECHNICAL_REVIEW_HEADERS);
     getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
@@ -395,6 +441,7 @@ var MidtsSheetService = (function () {
     return {
       leadsSheet: SHEETS.LEADS,
       technicalIntakeSheet: SHEETS.TECHNICAL_INTAKE,
+      technicalReviewsSheet: SHEETS.TECHNICAL_REVIEWS,
       vendorPricingSheet: SHEETS.VENDOR_PRICING,
       logsSheet: SHEETS.WEBHOOK_LOGS,
       emailLogsSheet: SHEETS.EMAIL_LOGS
@@ -405,11 +452,13 @@ var MidtsSheetService = (function () {
     SHEETS: SHEETS,
     LEAD_HEADERS: LEAD_HEADERS,
     TECHNICAL_INTAKE_HEADERS: TECHNICAL_INTAKE_HEADERS,
+    TECHNICAL_REVIEW_HEADERS: TECHNICAL_REVIEW_HEADERS,
     VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
     EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
     appendLeadRow: appendLeadRow,
     appendTechnicalIntakeRow: appendTechnicalIntakeRow,
+    appendTechnicalReviewRow: appendTechnicalReviewRow,
     appendVendorPricingRow: appendVendorPricingRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
@@ -417,6 +466,7 @@ var MidtsSheetService = (function () {
     findLeadBySubmissionId: findLeadBySubmissionId,
     findVendorPricingByLeadId: findVendorPricingByLeadId,
     findLatestTechnicalIntakeByLeadId: findLatestTechnicalIntakeByLeadId,
+    findLatestTechnicalReviewByLeadId: findLatestTechnicalReviewByLeadId,
     findLatestVendorPricingByLeadId: findLatestVendorPricingByLeadId,
     findVendorPricingByPricingId: findVendorPricingByPricingId,
     updateLeadById: updateLeadById,
