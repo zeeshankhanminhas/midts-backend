@@ -350,6 +350,62 @@ function postSampleStep2_(leadId, submissionId) {
   });
 }
 
+
+function testCreateProjectFromAcceptedQuote() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  return MidtsProjectService.createProjectFromAcceptedQuote(leadId, 'MIDTS Test Control');
+}
+
+function testRecordDelivery() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var projectResult = MidtsSheetService.findProjectByLeadId(leadId);
+  if (!projectResult) throw new Error('Create the project before recording delivery.');
+  return MidtsDeliveryService.recordDelivery(projectResult.project['Project ID'], {
+    summary: 'Lifecycle test delivery record created from the controlled test path.',
+    deliveredFiles: 'Drive delivery package for ' + leadId,
+    clientReviewStatus: 'Internal test'
+  }, 'MIDTS Test Control');
+}
+
+function testRecordHandover() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var projectResult = MidtsSheetService.findProjectByLeadId(leadId);
+  if (!projectResult) throw new Error('Create the project before recording handover.');
+  return MidtsHandoverService.recordHandover(projectResult.project['Project ID'], {
+    releaseNotes: 'Lifecycle test handover package released for controlled validation.',
+    releasedFiles: 'Drive handover package for ' + leadId,
+    clientAcceptanceStatus: 'Internal test'
+  }, 'MIDTS Test Control');
+}
+
+function testIssueInvoice() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var projectResult = MidtsSheetService.findProjectByLeadId(leadId);
+  if (!projectResult) throw new Error('Create the project before issuing an invoice.');
+  return MidtsInvoiceService.issueInvoice(projectResult.project['Project ID'], {
+    amount: 1,
+    currency: MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP',
+    paymentTerms: 'Internal lifecycle test - no client invoice issued.',
+    dueDate: Utilities.formatDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'Europe/London', 'yyyy-MM-dd')
+  }, 'MIDTS Test Control');
+}
+
+function testOperationalDocumentAdapters() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var projectResult = MidtsSheetService.findProjectByLeadId(leadId);
+  if (!projectResult) throw new Error('Project record not found for lead: ' + leadId);
+  var delivery = MidtsSheetService.findLatestDeliveryRecordByProjectId(projectResult.project['Project ID']);
+  var handover = MidtsSheetService.findLatestHandoverRecordByProjectId(projectResult.project['Project ID']);
+  var invoice = MidtsSheetService.findLatestInvoiceByProjectId(projectResult.project['Project ID']);
+  var result = {
+    completionReport: delivery ? MidtsDocumentAdapterService.toCompletionReportData(projectResult.project, delivery.deliveryRecord, { status:'issued' }) : null,
+    handoverPack: handover ? MidtsDocumentAdapterService.toHandoverPackData(projectResult.project, delivery ? delivery.deliveryRecord : {}, handover.handoverRecord, { status:'issued' }) : null,
+    invoice: invoice ? MidtsDocumentAdapterService.toInvoiceData(projectResult.project, invoice.invoice, { status:'issued' }) : null
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 function isWorkflowAction_(action) {
   var normalized = String(action || '').trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
   return normalized === 'vendorsafeready' ||
