@@ -228,6 +228,29 @@ function testDocumentsSheet() {
   return MidtsDocumentService.ensureDocumentsSheet();
 }
 
+function testDocumentDataContracts() {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var leadResult = MidtsSheetService.findLeadById(leadId);
+  if (!leadResult) throw new Error('Lead not found: ' + leadId);
+
+  var pricingResult = MidtsSheetService.findLatestVendorPricingByLeadId(leadId);
+  if (!pricingResult) throw new Error('Vendor pricing not found for lead: ' + leadId);
+
+  var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
+  return {
+    control: MidtsDocumentAdapterService.toDocumentControl(leadResult.lead, 'quote', {
+      reference: pricingResult.pricing['Quote Reference'] || leadResult.lead['Quote Reference'] || leadId,
+      revision: pricingResult.pricing['Quote Revision'] || '1',
+      status: 'draft'
+    }),
+    quote: MidtsDocumentAdapterService.toQuoteData(leadResult.lead, {}, pricingResult.pricing, { status: 'draft' }),
+    requirementSheet: intakeResult
+      ? MidtsDocumentAdapterService.toRequirementSheetData(leadResult.lead, intakeResult.intake, { status: 'draft' })
+      : null,
+    email: MidtsDocumentAdapterService.toEmailPayload('quoteIssued', leadResult.lead, pricingResult.pricing, {})
+  };
+}
+
 function testLeadDriveStructure() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
   return MidtsDriveService.ensureLeadStructure(leadId);
