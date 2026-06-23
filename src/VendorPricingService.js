@@ -13,6 +13,9 @@ var MidtsVendorPricingService = (function () {
       return { ok: false, code: 'VENDOR_SAFE_PACKAGE_NOT_REQUIRED', message: 'Vendor-safe package is not required for this lead.' };
     }
 
+    var packageResult = MidtsVendorSafePackageService.preparePackage(leadId, reviewer || 'Vendor Safe Review');
+    if (!packageResult.ok) return packageResult;
+
     var now = new Date();
     var updatedLead = MidtsSheetService.updateLeadById(leadId, {
       'Lifecycle Status': 'Vendor Pricing',
@@ -33,6 +36,7 @@ var MidtsVendorPricingService = (function () {
       message: 'Vendor-safe package marked ready; lead moved to vendor pricing',
       payload: {
         leadId: leadId,
+        packageId: packageResult.packageId,
         reviewer: reviewer || 'Vendor Safe Review'
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
@@ -45,6 +49,7 @@ var MidtsVendorPricingService = (function () {
       leadId: leadId,
       lifecycleStatus: 'Vendor Pricing',
       vendorSafePackageReady: 'Yes',
+      packageId: packageResult.packageId,
       vendorPricingStatus: 'Contact Vendor',
       nextAction: 'Contact vendor'
     };
