@@ -2,7 +2,7 @@ var MidtsDeliveryService = (function () {
   function recordDelivery(projectId, details, actor) {
     if (!projectId) return { ok:false, code:'MISSING_PROJECT_ID', message:'Project ID is required.' };
     details = details || {};
-    var projectResult = findProject_(projectId);
+    var projectResult = MidtsSheetService.findProjectById(projectId);
     if (!projectResult) return { ok:false, code:'PROJECT_NOT_FOUND', message:'Project not found: ' + projectId };
     var project = projectResult.project;
     if (String(project['Project Status'] || '') !== 'Open') {
@@ -31,24 +31,6 @@ var MidtsDeliveryService = (function () {
       'Last Updated At':now
     });
     return { ok:true, deliveryId:deliveryId, projectId:projectId, nextAction:'Prepare client handover' };
-  }
-
-  function findProject_(projectId) {
-    var sheet = MidtsSheetService.getProjectSheet ? MidtsSheetService.getProjectSheet() : null;
-    if (!sheet) throw new Error('Project sheet accessor is unavailable.');
-    var headers = MidtsSheetService.getHeaderMap ? MidtsSheetService.getHeaderMap(sheet) : null;
-    if (!headers) throw new Error('Project header accessor is unavailable.');
-    var idColumn = headers['Project ID'];
-    if (!idColumn || sheet.getLastRow() < 2) return null;
-    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
-    for (var i = rows.length - 1; i >= 0; i -= 1) {
-      if (String(rows[i][idColumn - 1]) === String(projectId)) {
-        var project = {};
-        Object.keys(headers).forEach(function (header) { project[header] = rows[i][headers[header] - 1]; });
-        return { sheet:sheet, rowNumber:i + 2, headerMap:headers, project:project };
-      }
-    }
-    return null;
   }
 
   return { recordDelivery:recordDelivery };
