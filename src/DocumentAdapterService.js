@@ -180,6 +180,63 @@ var MidtsDocumentAdapterService = (function () {
     };
   }
 
+  function toHandoverPackData(project, deliveryRecord, handoverRecord, options) {
+    project = project || {};
+    deliveryRecord = deliveryRecord || {};
+    handoverRecord = handoverRecord || {};
+    options = options || {};
+    var lead = { 'Lead ID': project['Lead ID'] || options.leadId || '', 'Quote Reference': project['Quote Reference'] || '' };
+    var control = toDocumentControl(lead, 'handoverPack', {
+      reference: options.reference || handoverRecord['Handover ID'] || project['Project ID'],
+      revision: options.revision || '1',
+      status: options.status || 'issued',
+      issuedAt: options.issuedAt
+    });
+    return {
+      documentType: 'handoverPack',
+      status: control.status,
+      reference: control.reference,
+      preparedFor: control.preparedFor,
+      preparedBy: control.preparedBy,
+      projectReference: String(project['Project ID'] || ''),
+      dateIssued: control.dateIssued,
+      revision: control.revision,
+      title: 'Project Handover Pack',
+      releaseNotes: String(handoverRecord['Release Notes'] || '').trim(),
+      releasedFiles: parseList_(handoverRecord['Released Files']),
+      deliverySummary: String(deliveryRecord['Delivery Summary'] || '').trim(),
+      clientAcceptanceStatus: String(handoverRecord['Client Acceptance Status'] || 'Pending client acceptance').trim()
+    };
+  }
+
+  function toInvoiceData(project, invoiceRecord, options) {
+    project = project || {};
+    invoiceRecord = invoiceRecord || {};
+    options = options || {};
+    var lead = { 'Lead ID': project['Lead ID'] || options.leadId || '', 'Quote Reference': project['Quote Reference'] || '' };
+    var control = toDocumentControl(lead, 'invoice', {
+      reference: options.reference || invoiceRecord['Invoice ID'] || project['Project ID'],
+      revision: options.revision || '1',
+      status: options.status || 'issued',
+      issuedAt: options.issuedAt
+    });
+    var currency = String(invoiceRecord['Currency'] || 'GBP').trim().toUpperCase();
+    return {
+      documentType: 'invoice',
+      status: control.status,
+      reference: control.reference,
+      preparedFor: control.preparedFor,
+      preparedBy: control.preparedBy,
+      projectReference: String(project['Project ID'] || ''),
+      dateIssued: control.dateIssued,
+      dueDate: invoiceRecord['Due Date'] || '',
+      currency: currency,
+      amount: money_(invoiceRecord['Amount'], currency),
+      paymentTerms: String(invoiceRecord['Payment Terms'] || '').trim(),
+      invoiceStatus: String(invoiceRecord['Invoice Status'] || 'Issued').trim()
+    };
+  }
+
   function toEmailPayload(templateKey, lead, quote, project) {
     lead = lead || {};
     quote = quote || {};
@@ -242,6 +299,8 @@ var MidtsDocumentAdapterService = (function () {
     toQuoteData: toQuoteData,
     toTechnicalReviewData: toTechnicalReviewData,
     toCompletionReportData: toCompletionReportData,
+    toHandoverPackData: toHandoverPackData,
+    toInvoiceData: toInvoiceData,
     toEmailPayload: toEmailPayload
   };
 })();
