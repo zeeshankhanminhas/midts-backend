@@ -97,10 +97,11 @@ async function forwardToAppsScript(payload) {
   const normalizedAction = normalizeLegacyAction(payload);
   if (normalizedAction) {
     const legacyPayload = new URLSearchParams({ ...stringifyValues(payload), action: normalizedAction });
-    const upstreamResponse = await postToAppsScript(webhookUrl, {
+    const upstreamResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: legacyPayload.toString(),
+      redirect: 'follow',
     });
 
     return {
@@ -109,26 +110,17 @@ async function forwardToAppsScript(payload) {
     };
   }
 
-  const upstreamResponse = await postToAppsScript(webhookUrl, {
+  const upstreamResponse = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, webhookToken }),
+    redirect: 'follow',
   });
 
   return {
     status: upstreamResponse.status,
     body: await parseUpstreamBody(upstreamResponse),
   };
-}
-
-async function postToAppsScript(url, requestInit) {
-  var response = await fetch(url, { ...requestInit, redirect: 'manual' });
-  if (isRedirect_(response.status)) {
-    var location = response.headers.get('location');
-    if (!location) return response;
-    response = await fetch(location, { ...requestInit, redirect: 'follow' });
-  }
-  return response;
 }
 
 function stringifyValues(payload) {
@@ -162,10 +154,6 @@ async function parseUpstreamBody(upstreamResponse) {
     upstreamContentType: contentType,
     upstreamPreview: text.slice(0, 500),
   };
-}
-
-function isRedirect_(status) {
-  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 async function handleWebhook(request, response) {
