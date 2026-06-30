@@ -97,7 +97,7 @@ async function forwardToAppsScript(payload) {
   const normalizedAction = normalizeLegacyAction(payload);
   if (normalizedAction) {
     const legacyPayload = new URLSearchParams({ ...stringifyValues(payload), action: normalizedAction });
-    const upstreamResponse = await fetch(webhookUrl, {
+    const upstreamResponse = await postToAppsScript(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: legacyPayload.toString(),
@@ -109,7 +109,7 @@ async function forwardToAppsScript(payload) {
     };
   }
 
-  const upstreamResponse = await fetch(webhookUrl, {
+  const upstreamResponse = await postToAppsScript(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...payload, webhookToken }),
@@ -119,6 +119,16 @@ async function forwardToAppsScript(payload) {
     status: upstreamResponse.status,
     body: await parseUpstreamBody(upstreamResponse),
   };
+}
+
+async function postToAppsScript(url, requestInit) {
+  var response = await fetch(url, { ...requestInit, redirect: 'manual' });
+  if (isRedirect_(response.status)) {
+    var location = response.headers.get('location');
+    if (!location) return response;
+    response = await fetch(location, { ...requestInit, redirect: 'follow' });
+  }
+  return response;
 }
 
 function stringifyValues(payload) {
@@ -139,9 +149,23 @@ function normalizeLegacyAction(payload) {
 
 async function parseUpstreamBody(upstreamResponse) {
   const contentType = upstreamResponse.headers.get('content-type') || '';
-  return contentType.includes('application/json')
-    ? await upstreamResponse.json().catch(() => ({}))
-    : { success: upstreamResponse.ok, message: await upstreamResponse.text() };
+  if (contentType.includes('application/json')) {
+    return upstreamResponse.json().catch(() => ({}));
+  }
+
+  const text = await upstreamResponse.text();
+  return {
+    success: false,
+    message: upstreamResponse.ok
+      ? 'Apps Script returned a non-JSON response.'
+      : `Apps Script request failed with HTTP ${upstreamResponse.status}.`,
+    upstreamContentType: contentType,
+    upstreamPreview: text.slice(0, 500),
+  };
+}
+
+function isRedirect_(status) {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 async function handleWebhook(request, response) {
