@@ -44,11 +44,13 @@ var MidtsVendorRequestService = (function () {
     var packageNotice = packageLink
       ? '<p class="notice">Vendor-safe package link has been prefilled from the latest package record.</p>'
       : '<p class="notice">No vendor-safe package link was found for this lead. Paste the approved Drive folder link before sending.</p>';
+    var fileNotice = '<p class="notice"><strong>Before sending:</strong> upload only the approved vendor-safe files into the linked Drive folder. Do not send the request while the folder is empty or contains internal/client-confidential review material.</p>';
     var body = [
       '<p class="meta">MIDTS INTERNAL COMMERCIAL WORKFLOW</p>',
       '<h1>Send vendor pricing request</h1>',
       '<p class="lede">Select the vendor and provide the approved vendor-safe package link. MIDTS will send the vendor a one-time pricing response link.</p>',
       packageNotice,
+      fileNotice,
       '<dl><dt>Lead</dt><dd>' + escapeHtml_(params.leadId) + '</dd>',
       '<dt>Client</dt><dd>' + escapeHtml_(lead['Full Name'] || '') + '</dd>',
       '<dt>Project</dt><dd>' + escapeHtml_(lead['Project Type'] || '') + '</dd></dl>',
@@ -59,6 +61,7 @@ var MidtsVendorRequestService = (function () {
       field_('Vendor name', 'vendorName', '', 'text', true),
       field_('Vendor email', 'vendorEmail', '', 'email', true),
       field_('Vendor-safe package link', 'packageLink', packageLink, 'url', true),
+      '<label class="check"><input type="checkbox" name="vendorSafeFilesConfirmed" value="yes" required> I confirm the linked folder contains the approved vendor-safe files for this vendor request.</label>',
       '<button type="submit">Send pricing request</button>',
       '</form>'
     ].join('');
@@ -76,7 +79,8 @@ var MidtsVendorRequestService = (function () {
         leadId: params.leadId,
         vendorName: params.vendorName,
         vendorEmail: params.vendorEmail,
-        packageLink: params.packageLink
+        packageLink: params.packageLink,
+        vendorSafeFilesConfirmed: params.vendorSafeFilesConfirmed
       });
       if (!result.ok) {
         return htmlPage_('Vendor request blocked', '<p>' + escapeHtml_(result.message) + '</p>');
@@ -214,6 +218,7 @@ var MidtsVendorRequestService = (function () {
     var subject = 'Send vendor pricing request - ' + leadId;
     var body = [
       'The vendor-safe package is ready. Select the vendor and send the pricing request.',
+      'Before sending, upload only the approved vendor-safe files into the linked Drive folder. Do not send an empty folder.',
       '',
       'Lead ID: ' + leadId,
       'Client: ' + (lead['Full Name'] || ''),
@@ -255,10 +260,12 @@ var MidtsVendorRequestService = (function () {
     var vendorName = String(input.vendorName || '').trim();
     var vendorEmail = String(input.vendorEmail || '').trim();
     var packageLink = String(input.packageLink || '').trim();
+    var vendorSafeFilesConfirmed = String(input.vendorSafeFilesConfirmed || '').toLowerCase() === 'yes';
 
     if (!leadId || !vendorName || !vendorEmail || !packageLink) {
       return { ok: false, message: 'Vendor name, email and vendor-safe package link are required.' };
     }
+    if (!vendorSafeFilesConfirmed) return { ok: false, message: 'Confirm the vendor-safe folder contains the approved files before sending.' };
     if (!isEmail_(vendorEmail)) return { ok: false, message: 'Enter a valid vendor email address.' };
     if (!/^https:\/\//i.test(packageLink)) return { ok: false, message: 'Vendor-safe package link must use https://.' };
 
@@ -507,6 +514,7 @@ var MidtsVendorRequestService = (function () {
   function htmlEmail_(leadId, lead, url) {
     return '<div style="font-family:Arial,sans-serif;color:#111;line-height:1.55;max-width:640px">' +
       '<p>The vendor-safe package is ready for <strong>' + escapeHtml_(leadId) + '</strong>.</p>' +
+      '<p><strong>Before sending:</strong> upload only the approved vendor-safe files into the linked Drive folder. Do not send an empty folder or internal/client-confidential review material.</p>' +
       '<p><strong>Client:</strong> ' + escapeHtml_(lead['Full Name'] || '') + '<br>' +
       '<strong>Project:</strong> ' + escapeHtml_(lead['Project Type'] || '') + '</p>' +
       '<p><a href="' + escapeHtml_(url) + '" style="display:inline-block;padding:10px 14px;border:1px solid #111;color:#111;text-decoration:none">Send vendor pricing request</a></p></div>';
@@ -519,7 +527,7 @@ var MidtsVendorRequestService = (function () {
       'body{margin:0;background:#fff;color:#111;font-family:Arial,sans-serif;line-height:1.5}.wrap{max-width:720px;margin:0 auto;padding:48px 24px}',
       'h1{font-size:32px;line-height:1.1;margin:0 0 18px}.meta{font-size:12px;letter-spacing:.08em;margin:0 0 24px}.lede{font-size:17px;max-width:620px}',
       'dl{border-top:1px solid #111;margin:32px 0}dt{font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding-top:14px}dd{margin:2px 0 14px;font-size:16px}',
-      'form{border-top:1px solid #111;padding-top:24px;margin-top:28px}label{display:block;font-size:14px;margin:0 0 18px;font-weight:bold}input,textarea{box-sizing:border-box;display:block;width:100%;margin-top:6px;padding:11px;border:1px solid #111;border-radius:0;background:#fff;color:#111;font:16px Arial,sans-serif;font-weight:normal}textarea{min-height:110px;resize:vertical}button,.package{display:inline-block;border:1px solid #111;background:#111;color:#fff;padding:12px 16px;font:14px Arial,sans-serif;text-decoration:none;cursor:pointer}.package{background:#fff;color:#111}',
+      'form{border-top:1px solid #111;padding-top:24px;margin-top:28px}label{display:block;font-size:14px;margin:0 0 18px;font-weight:bold}input,textarea{box-sizing:border-box;display:block;width:100%;margin-top:6px;padding:11px;border:1px solid #111;border-radius:0;background:#fff;color:#111;font:16px Arial,sans-serif;font-weight:normal}textarea{min-height:110px;resize:vertical}button,.package{display:inline-block;border:1px solid #111;background:#111;color:#fff;padding:12px 16px;font:14px Arial,sans-serif;text-decoration:none;cursor:pointer}.package{background:#fff;color:#111}.notice{border:1px solid #111;padding:12px;margin:18px 0;background:#f7f7f7}.check{display:flex;gap:10px;align-items:flex-start;border:1px solid #111;padding:12px;font-weight:normal}.check input{width:auto;margin:3px 0 0}',
       '@media(max-width:560px){.wrap{padding:32px 18px}h1{font-size:28px}}</style></head><body><main class="wrap">' + body + '</main></body></html>'
     ].join(''));
   }
