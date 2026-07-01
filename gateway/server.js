@@ -68,8 +68,8 @@ function validatePayload(payload) {
   }
 
   if (stage === 'vendorpricing' || action === 'vendorpricing') {
-    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
-    if (!firstString(payload, ['vendorId', 'vendor_id'])) return 'Missing vendor reference.';
+    if (!firstString(payload, ['requestId', 'request_id'])) return 'Missing vendor request reference.';
+    if (!firstString(payload, ['token'])) return 'Missing vendor request token.';
     if (!firstString(payload, ['vendorCost', 'vendor_cost'])) return 'Missing vendor cost.';
     return '';
   }

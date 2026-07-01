@@ -456,6 +456,12 @@ var MidtsVendorRequestService = (function () {
   }
 
   function buildVendorPricingUrl_(requestId, rawToken) {
+    var frontendUrl = MidtsConfig.getScriptProperty('VENDOR_PRICING_FORM_URL');
+    if (frontendUrl) {
+      return frontendUrl + (frontendUrl.indexOf('?') === -1 ? '?' : '&') + 'requestId=' +
+        encodeURIComponent(requestId) + '&token=' + encodeURIComponent(rawToken);
+    }
+
     return MidtsConfig.getWebAppUrl() + '?action=vendorPricing&requestId=' +
       encodeURIComponent(requestId) + '&token=' + encodeURIComponent(rawToken);
   }
