@@ -39,10 +39,16 @@ var MidtsVendorRequestService = (function () {
     }
 
     var lead = leadResult.lead;
+    var packageResult = MidtsSheetService.findLatestVendorSafePackageByLeadId(params.leadId);
+    var packageLink = packageResult && packageResult.vendorSafePackage && packageResult.vendorSafePackage['Drive Folder URL'] || '';
+    var packageNotice = packageLink
+      ? '<p class="notice">Vendor-safe package link has been prefilled from the latest package record.</p>'
+      : '<p class="notice">No vendor-safe package link was found for this lead. Paste the approved Drive folder link before sending.</p>';
     var body = [
       '<p class="meta">MIDTS INTERNAL COMMERCIAL WORKFLOW</p>',
       '<h1>Send vendor pricing request</h1>',
       '<p class="lede">Select the vendor and provide the approved vendor-safe package link. MIDTS will send the vendor a one-time pricing response link.</p>',
+      packageNotice,
       '<dl><dt>Lead</dt><dd>' + escapeHtml_(params.leadId) + '</dd>',
       '<dt>Client</dt><dd>' + escapeHtml_(lead['Full Name'] || '') + '</dd>',
       '<dt>Project</dt><dd>' + escapeHtml_(lead['Project Type'] || '') + '</dd></dl>',
@@ -52,7 +58,7 @@ var MidtsVendorRequestService = (function () {
       hiddenInput_('token', params.token),
       field_('Vendor name', 'vendorName', '', 'text', true),
       field_('Vendor email', 'vendorEmail', '', 'email', true),
-      field_('Vendor-safe package link', 'packageLink', '', 'url', true),
+      field_('Vendor-safe package link', 'packageLink', packageLink, 'url', true),
       '<button type="submit">Send pricing request</button>',
       '</form>'
     ].join('');
