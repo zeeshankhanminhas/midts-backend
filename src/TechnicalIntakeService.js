@@ -71,21 +71,25 @@ var MidtsTechnicalIntakeService = (function () {
   }
 
   function normalizeStep2Payload(payload) {
+    var timelineUrgency = firstPresent_(payload, ['timelineUrgency', 'timeline_urgency']);
+    var requirementComplexity = firstPresent_(payload, ['requirementComplexity', 'requirement_complexity']);
+    var technicalNotes = firstPresent_(payload, ['technicalNotes', 'technical_notes', 'notes', 'additional_notes']);
+
     return {
       leadId: firstPresent_(payload, ['leadId', 'lead_id', 'midtsLeadId']),
       submissionId: firstPresent_(payload, ['submissionId', 'submission_id', 'lead_id', 'leadId']),
       serviceType: firstPresent_(payload, ['serviceType', 'service_type', 'project_type', 'projectType']),
-      technicalScope: firstPresent_(payload, ['technicalScope', 'technical_scope', 'scope', 'detailed_requirement', 'technical_requirement']),
+      technicalScope: firstPresent_(payload, ['technicalRequirement', 'technical_requirement', 'technicalScope', 'technical_scope', 'scope', 'detailed_requirement']),
       materials: firstPresent_(payload, ['materials', 'material', 'material_specification']),
       quantity: firstPresent_(payload, ['quantity', 'qty', 'volume']),
-      deadline: firstPresent_(payload, ['deadline', 'required_by', 'timeline']),
+      deadline: timelineUrgency || firstPresent_(payload, ['deadline', 'required_by', 'timeline']),
       filesProvided: truthy_(firstPresent_(payload, ['filesProvided', 'files_provided', 'has_files', 'file_upload_complete'])),
       fileLinks: firstPresent_(payload, ['fileLinks', 'file_links', 'drive_links', 'uploaded_files']),
       ndaRequired: truthy_(firstPresent_(payload, ['ndaRequired', 'nda_required', 'confidential', 'confidentiality_required'])),
-      confidentialityNotes: firstPresent_(payload, ['confidentialityNotes', 'confidentiality_notes', 'nda_notes']),
+      confidentialityNotes: firstPresent_(payload, ['confidentialityNotes', 'confidentiality_notes', 'nda_notes', 'filesDrawingsReady', 'files_drawings_ready']),
       budgetRange: firstPresent_(payload, ['budgetRange', 'budget_range', 'budget']),
-      timingNotes: firstPresent_(payload, ['timingNotes', 'timing_notes']),
-      technicalNotes: firstPresent_(payload, ['technicalNotes', 'technical_notes', 'notes', 'additional_notes'])
+      timingNotes: firstPresent_(payload, ['timingNotes', 'timing_notes']) || timelineUrgency,
+      technicalNotes: technicalNotes || requirementComplexity
     };
   }
 
