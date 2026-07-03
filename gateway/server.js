@@ -61,6 +61,11 @@ function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
 
+  if (stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews') {
+    if (action !== 'listpendingtechnicalreviews') return 'Unsupported workspace read action.';
+    return '';
+  }
+
   if (stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review') {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['reviewer'])) return 'Missing reviewer.';
