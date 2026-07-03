@@ -33,7 +33,7 @@ Target architecture:
 | 9 | Vendor pricing request setup | MIDTS commercial | Apps Script form `action=vendorRequestSetup` | `leadId`, `token`, `vendorName`, `vendorEmail`, `packageLink`, `vendorSafeFilesConfirmed` | `VendorRequestService.handleRequestSetupSubmission` -> `createAndSendRequest_` | `Vendor Requests`, `Leads`, `Email Logs` | Vendor pricing request email | No | Move to frontend `/internal/vendor-request` and submit through gateway. |
 | 10 | Vendor commercial response | Vendor | `NEW-MIDTS/vendor-pricing?requestId=...&token=...` after latest change | `formStage=vendorPricing`, `action=vendorPricing`, `requestId`, `token`, `vendorCost`, `vendorCurrency`, `leadTime`, `quoteValidUntil`, `vendorReference`, `exclusions`, `notes` | Gateway -> Apps Script `doPost(action=vendorPricing)` -> `VendorRequestService.handleVendorPricingSubmission` -> `VendorPricingService.recordVendorPricing` | `Vendor Requests`, `Vendor Pricing`, `Leads`, `Webhook Logs`, `Email Logs` | Internal margin approval/workflow action email | Partial | Gateway path exists; requires deployed Apps Script `VENDOR_PRICING_FORM_URL` and updated Cloud Run. Old Apps Script form remains fallback. |
 | 11 | Margin approval | MIDTS commercial | Apps Script workflow action URL `action=approveMargin` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `VendorPricingService.approveLatestMargin` | `Vendor Pricing`, `Leads`, `Webhook Logs`, `Email Logs` | Workflow email for quote preparation | No | Move to frontend `/internal/margin-approval` with visible vendor cost, margin, client price, and approval template. |
-| 12 | Quote preparation | MIDTS commercial | Apps Script workflow action URL `action=prepareQuote` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `QuoteService.prepareQuoteDraft` | `Leads`, `Documents`, `Webhook Logs`, `Email Logs` | Workflow email for quote approval | No | Move to frontend quote-control page and link to quote document template. |
+| 12 | Quote preparation | MIDTS commercial | Apps Script workflow action URL `action=prepareQuote` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `QuoteService.prepareQuoteDraft` | `Leads`, `Documents`, `Webhook Logs`, `Email Logs` | Workflow email for quote approval | No | Move to frontend quote-control page and link to `/workspace/documents/quote` or a controlled generated document. |
 | 13 | Quote document link refresh | MIDTS control | Apps Script test/manual (`testQuoteDocumentLinkRefresh`) | `leadId` | `QuoteService.refreshQuoteDocumentLink` | `Leads`, `Documents` | None | No | Fold into quote-control page. |
 | 14 | Quote approval | MIDTS approver | Apps Script workflow action URL `action=approveQuote` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `QuoteService.approveQuoteDraft` | `Leads`, `Documents`, `Webhook Logs`, `Email Logs` | Quote-send approval email | No | Move to frontend quote-control approval page with rendered quote preview. |
 | 15 | Send approved quote | MIDTS approver | Apps Script workflow action URL `action=sendQuote` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `QuoteDeliveryService.sendQuoteToClient` | `Quote Responses`, `Leads`, `Email Logs`, `Webhook Logs` | Client quote email with accept/reject links | No | Move to frontend quote-control send confirmation. |
@@ -49,16 +49,16 @@ Target architecture:
 
 | Template | Frontend route | Current lifecycle use | Gap |
 |---|---|---|---|
-| Requirement Sheet | `/documents/requirement-sheet` | Represents Step 1 + Step 2 intake | Not linked as transaction output after Step 2. |
+| Requirement Sheet | `/workspace/documents/requirement-sheet` | Represents Step 1 + Step 2 intake | Not linked as transaction output after Step 2. |
 | Technical Review | `/workspace/documents/technical-review` | Supports technical review decision | Transaction form now exists at `/workspace/technical-review`; next gap is decision migration. |
-| Capability Statement | `/documents/capability-statement` | Optional client-facing support document | Property exists; not tied to all decision paths. |
-| Proposal | `/documents/proposal` | Pre-quote/support proposal | Not yet a controlled lifecycle output. |
-| Statement of Work | `/documents/statement-of-work` | Delivery scope control | Not yet generated from accepted quote/project. |
-| Quote | `/documents/quote` | Quote draft/approved quote template | Used by quote document link; needs quote-control page for approval/send. |
-| Completion Report | `/documents/completion-report` | Delivery completion evidence | Delivery transaction not gateway-based yet. |
-| Handover Pack | `/documents/handover-pack` | Final file release | Handover transaction not gateway-based yet. |
-| Invoice | `/documents/invoice` | Billing record | Invoice transaction not gateway-based yet. |
-| Email Templates | `/documents/email-templates` | Sendable email copy reference | Backend email strings are still inline in Apps Script, not template-driven. |
+| Capability Statement | `/workspace/documents/capability-statement` | Optional controlled support document | Property exists; not tied to all decision paths. |
+| Proposal | `/workspace/documents/proposal` | Pre-quote/support proposal | Not yet a controlled lifecycle output. |
+| Statement of Work | `/workspace/documents/statement-of-work` | Delivery scope control | Not yet generated from accepted quote/project. |
+| Quote | `/workspace/documents/quote` | Quote draft/approved quote template | Used by quote document link; needs quote-control page for approval/send. |
+| Completion Report | `/workspace/documents/completion-report` | Delivery completion evidence | Delivery transaction not gateway-based yet. |
+| Handover Pack | `/workspace/documents/handover-pack` | Final file release | Handover transaction not gateway-based yet. |
+| Invoice | `/workspace/documents/invoice` | Billing record | Invoice transaction not gateway-based yet. |
+| Email Templates | `/workspace/documents/email-templates` | Sendable email copy reference | Backend email strings are still inline in Apps Script, not template-driven. |
 
 ## Current Apps Script-Facing Surfaces To Remove
 
@@ -91,9 +91,9 @@ Migrate one action at a time in this order:
    - Submit `approveMargin` through gateway.
 5. Quote control.
    - Create frontend quote prepare/approve/send control page.
-   - Link to quote document template and rendered PDF status.
+   - Link to `/workspace/documents/quote` or a controlled generated quote document and rendered PDF status.
 6. Project delivery controls.
-   - Add delivery, handover, and invoice pages with matching document templates.
+   - Add delivery, handover, and invoice pages with matching workspace document templates.
 7. Update documentation and remove stale direct-Apps-Script frontend env references.
 
 ## Required Gateway Action Contract
