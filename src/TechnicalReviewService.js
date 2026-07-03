@@ -17,7 +17,7 @@ var MidtsTechnicalReviewService = (function () {
     var summary = String(input.reviewSummary || input.review_summary || '').trim();
     var recommendation = normalizeRecommendation_(input.recommendation);
     if (!summary) return { ok: false, code: 'REVIEW_SUMMARY_REQUIRED', message: 'Review summary is required.' };
-    if (!recommendation) return { ok: false, code: 'RECOMMENDATION_REQUIRED', message: 'Recommendation must be Qualified, Needs More Info, or Not Suitable.' };
+    if (!recommendation) return { ok: false, code: 'RECOMMENDATION_REQUIRED', message: 'Recommendation must be Qualified, Needs More Info, Nurture, or Not Suitable.' };
 
     var now = new Date();
     var reviewId = 'TR-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
@@ -64,6 +64,7 @@ var MidtsTechnicalReviewService = (function () {
     var normalized = String(value || '').trim().toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ');
     if (normalized === 'qualified') return 'Qualified';
     if (normalized === 'needs more info') return 'Needs More Info';
+    if (normalized === 'nurture') return 'Nurture';
     if (normalized === 'not suitable') return 'Not Suitable';
     return '';
   }
