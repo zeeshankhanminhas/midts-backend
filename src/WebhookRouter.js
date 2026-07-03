@@ -13,11 +13,15 @@ var MidtsWebhookRouter = (function () {
           outcome: 'rejected',
           message: tokenResult.code,
           payload: scrubPayload(payload),
-          submissionId: payload.lead_id || payload.submissionId || '',
+          submissionId: payload.lead_id || payload.submissionId || payload.leadId || '',
           email: payload.work_email || payload.email || '',
           source: payload.source || 'Website'
         });
         return MidtsResponseService.failure(tokenResult.code, tokenResult.message, { requestId: requestId });
+      }
+
+      if (isTechnicalReviewPayload_(payload)) {
+        return handleTechnicalReview_(payload, requestId);
       }
 
       if (isStep2Payload_(payload)) {
@@ -151,6 +155,41 @@ var MidtsWebhookRouter = (function () {
     });
   }
 
+  function handleTechnicalReview_(payload, requestId) {
+    var reviewResult = MidtsTechnicalReviewService.recordReview(payload);
+    if (!reviewResult.ok) {
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'technical_review_failed',
+        message: reviewResult.code,
+        payload: scrubPayload(payload),
+        submissionId: payload.leadId || payload.lead_id || '',
+        source: payload.source || 'WorkspaceTechnicalReview'
+      });
+      return MidtsResponseService.failure(reviewResult.code, reviewResult.message, { requestId: requestId });
+    }
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: 'technical_review_success',
+      message: 'Technical review recorded',
+      payload: scrubPayload(payload),
+      submissionId: reviewResult.leadId,
+      source: payload.source || 'WorkspaceTechnicalReview'
+    });
+
+    return MidtsResponseService.success({
+      requestId: requestId,
+      reviewId: reviewResult.reviewId,
+      leadId: reviewResult.leadId,
+      technicalIntakeId: reviewResult.technicalIntakeId,
+      recommendation: reviewResult.recommendation,
+      reviewStatus: 'Technical Review Complete',
+      nextAction: reviewResult.nextAction,
+      message: 'Technical review recorded. Qualification decision can now be recorded.'
+    });
+  }
+
   function parsePostEvent(e) {
     if (!e) return {};
 
@@ -171,6 +210,12 @@ var MidtsWebhookRouter = (function () {
   function isStep2Payload_(payload) {
     var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
     return stage === 'step2' || stage === 'step_2' || stage === 'technical-intake' || stage === 'technical_intake';
+  }
+
+  function isTechnicalReviewPayload_(payload) {
+    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
+    var action = String(payload.action || '').toLowerCase();
+    return stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review';
   }
 
   function looksLikeJson(contents) {
