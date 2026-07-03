@@ -4,8 +4,7 @@ import { chromium } from 'playwright';
 const app = express();
 const port = Number(process.env.PORT || 8080);
 const rendererToken = process.env.RENDERER_TOKEN || '';
-const allowedQuotePrefix = process.env.ALLOWED_QUOTE_PREFIX ||
-  'https://zeeshankhanminhas.github.io/NEW-MIDTS/documents/quote/';
+const allowedQuotePrefix = String(process.env.ALLOWED_QUOTE_PREFIX || '').trim();
 const maxRenderMs = Number(process.env.MAX_RENDER_MS || 45000);
 
 app.disable('x-powered-by');
@@ -70,7 +69,7 @@ function isAuthorized(request) {
 }
 
 function isAllowedQuoteUrl(url) {
-  return typeof url === 'string' && url.startsWith(allowedQuotePrefix);
+  return Boolean(allowedQuotePrefix) && typeof url === 'string' && url.startsWith(allowedQuotePrefix);
 }
 
 app.listen(port, () => {
