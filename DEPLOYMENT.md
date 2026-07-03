@@ -5,7 +5,7 @@ This backend is deployed from GitHub to Google Apps Script. GitHub remains the s
 This repo contains two deployable parts:
 
 1. `src/` - Google Apps Script backend for enquiry intake, lifecycle routing, sheet control, email actions, document audit records, and quote/project workflow.
-2. `renderer/` - Cloud Run PDF renderer used by Apps Script to render approved document URLs to PDF.
+2. `renderer/` - Cloud Run PDF renderer used by Apps Script to render approved document URLs or controlled HTML to PDF.
 
 ## 1. Create The Launch Google Sheet
 
@@ -82,8 +82,9 @@ INTAKE_EMAIL=<internal-midts-review-email>
 TEST_EMAIL=<safe-test-recipient-email>
 STEP2_FORM_URL=<full-step-2-form-url>
 STEP2_FORM_BASE_URL=<step-2-form-base-url>
-CAPABILITY_STATEMENT_URL=<frontend-capability-statement-url>
-QUOTE_TEMPLATE_URL=<frontend-quote-template-url>
+FRONTEND_BASE_URL=<frontend-origin-without-trailing-slash>
+CAPABILITY_STATEMENT_URL=<controlled-capability-statement-url-or-blank>
+QUOTE_TEMPLATE_URL=<optional-private-workspace-quote-url-or-blank>
 CLIENT_QUOTE_CURRENCY=GBP
 QUOTE_VALIDITY_DAYS=30
 QUOTE_VAT_TEXT=Subject to VAT where applicable
@@ -92,6 +93,15 @@ DEFAULT_MARGIN_TYPE=percentage
 DEFAULT_MARGIN_VALUE=25
 DOCUMENT_PREPARED_BY=MIDTS Engineering
 QUOTE_CLIENT_DELIVERY_ENABLED=false
+```
+
+Document link rules:
+
+```text
+Do not set CAPABILITY_STATEMENT_URL or QUOTE_TEMPLATE_URL to public /documents/* routes.
+Quote draft links should resolve to /workspace/documents/quote until controlled generated documents are available.
+If QUOTE_TEMPLATE_URL is blank, the backend builds FRONTEND_BASE_URL + /workspace/documents/quote.
+If QUOTE_TEMPLATE_URL contains /documents/quote, the backend ignores it and falls back to the private workspace route.
 ```
 
 Only set `QUOTE_CLIENT_DELIVERY_ENABLED=true` after quote PDF generation and client-specific delivery have been proven end to end.
@@ -111,13 +121,17 @@ It requires:
 Authorization: Bearer <RENDERER_TOKEN>
 ```
 
+The renderer no longer has a public quote-template default. URL rendering is disabled unless `ALLOWED_QUOTE_PREFIX` is explicitly configured to a controlled non-public route. Prefer rendering controlled HTML or generated Drive-backed documents until authenticated workspace rendering is available.
+
 Deploy it to Cloud Run from the `renderer/` directory with environment variables:
 
 ```text
 RENDERER_TOKEN=<same-value-as-PDF_RENDERER_TOKEN>
-ALLOWED_QUOTE_PREFIX=https://zeeshankhanminhas.github.io/NEW-MIDTS/documents/quote/
+ALLOWED_QUOTE_PREFIX=https://<frontend-domain>/workspace/documents/quote
 MAX_RENDER_MS=45000
 ```
+
+Do not configure `ALLOWED_QUOTE_PREFIX` with a public `/documents/*` path.
 
 After deployment, test:
 
@@ -131,7 +145,7 @@ Then set Apps Script `PDF_RENDERER_URL` to:
 <cloud-run-url>/render/pdf
 ```
 
-At the moment the renderer is configured for quote rendering. Extend `ALLOWED_QUOTE_PREFIX` or renderer validation before using it for other document routes such as Engineering Project Packs.
+At the moment the renderer is configured for controlled quote rendering only. Extend `ALLOWED_QUOTE_PREFIX` or renderer validation before using it for other document routes such as Engineering Project Packs.
 
 ## 6. Initialize Backend Sheets
 
@@ -159,7 +173,7 @@ Execute as: Me
 Who has access: Anyone
 ```
 
-Use the `/exec` URL for production website traffic.
+Use the `/exec` URL for production website traffic through the Cloud Run gateway.
 
 Do not use `/dev` for the live website.
 
@@ -227,19 +241,18 @@ Project Created -> Project Active
 Only after backend tests pass, set frontend hosting/build variables:
 
 ```text
-NEXT_PUBLIC_MIDTS_WEBHOOK_URL=<apps-script-exec-url>
-NEXT_PUBLIC_MIDTS_WEBHOOK_TOKEN=<same-value-as-WEBSITE_WEBHOOK_TOKEN>
+NEXT_PUBLIC_MIDTS_GATEWAY_URL=<cloud-run-gateway-url>/webhook
 ```
 
 Rebuild/redeploy the frontend after changing these values.
 
 ## 10. Project Pack Backend Readiness
 
-The document suite now supports:
+The document suite now supports private workspace routes:
 
 ```text
-/documents/sample-project-pack
-/documents/project-pack/[projectId]
+/workspace/documents/sample-project-pack
+/workspace/documents/project-pack/[projectId]
 ```
 
 Backend work still required before live Project Pack generation is complete:
@@ -248,7 +261,7 @@ Backend work still required before live Project Pack generation is complete:
 - expose a normalized Engineering Project Pack data contract
 - provide asset URLs for CAD, drawing, sample output, CAM, delivery, and hero images
 - decide whether live Project Pack rendering is static, server-rendered, or PDF-rendered through Cloud Run
-- extend the PDF renderer allow-list if Project Pack PDFs are rendered from the frontend route
+- extend the PDF renderer allow-list if Project Pack PDFs are rendered from an authenticated workspace route
 
 ## 11. Launch Freeze Rule
 
