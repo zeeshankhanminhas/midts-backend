@@ -97,7 +97,7 @@ var MidtsQuoteService = (function () {
 
     var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
     if (!quoteDocumentLink) {
-      return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'QUOTE_TEMPLATE_URL Script Property is required.' };
+      return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'Set FRONTEND_BASE_URL or QUOTE_TEMPLATE_URL to the private workspace quote route.' };
     }
 
     var now = new Date();
@@ -109,7 +109,7 @@ var MidtsQuoteService = (function () {
     MidtsLogger.logWebhookAttempt({
       requestId: 'QUOTE-LINK-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
       outcome: 'quote_document_link_refreshed',
-      message: 'Quote document link refreshed from quote reference and template URL',
+      message: 'Quote document link refreshed from quote reference and private workspace template URL',
       payload: {
         leadId: leadId,
         quoteReference: quoteReference,
@@ -244,7 +244,7 @@ var MidtsQuoteService = (function () {
   }
 
   function buildQuoteDocumentLink_(quoteReference, leadId, lead, pricing) {
-    var templateUrl = MidtsConfig.getScriptProperty('QUOTE_TEMPLATE_URL');
+    var templateUrl = getPrivateQuoteTemplateUrl_();
     var clientCurrency = String(pricing && pricing['Client Quote Currency'] || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').toUpperCase();
     var total = formatQuoteAmount_(pricing && pricing['Client Quote Amount'], clientCurrency);
     if (!templateUrl || !total) return '';
@@ -270,6 +270,24 @@ var MidtsQuoteService = (function () {
       'vat=' + encodeURIComponent(MidtsConfig.getScriptProperty('QUOTE_VAT_TEXT') || 'Subject to VAT where applicable'),
       'status=draft'
     ].join('&');
+  }
+
+  function getPrivateQuoteTemplateUrl_() {
+    var configuredTemplateUrl = String(MidtsConfig.getScriptProperty('QUOTE_TEMPLATE_URL') || '').trim();
+    if (configuredTemplateUrl && !isPublicDocumentTemplateUrl_(configuredTemplateUrl)) {
+      return configuredTemplateUrl;
+    }
+
+    var frontendBaseUrl = String(MidtsConfig.getScriptProperty('FRONTEND_BASE_URL') || '').trim().replace(/\/+$/, '');
+    if (frontendBaseUrl) {
+      return frontendBaseUrl + '/workspace/documents/quote';
+    }
+
+    return '/workspace/documents/quote';
+  }
+
+  function isPublicDocumentTemplateUrl_(url) {
+    return /\/documents\/quote\/?(?:[?#].*)?$/i.test(String(url || '').trim()) || /\/documents\/quote\//i.test(String(url || '').trim());
   }
 
   function withDocumentStatus_(url, status) {
