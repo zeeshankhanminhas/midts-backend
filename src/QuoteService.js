@@ -287,7 +287,11 @@ var MidtsQuoteService = (function () {
   }
 
   function isPublicDocumentTemplateUrl_(url) {
-    return /\/documents\/quote\/?(?:[?#].*)?$/i.test(String(url || '').trim()) || /\/documents\/quote\//i.test(String(url || '').trim());
+    var value = String(url || '').trim();
+    if (/\/workspace\/documents\/quote\/?(?:[?#].*)?$/i.test(value) || /\/workspace\/documents\/quote\//i.test(value)) {
+      return false;
+    }
+    return /\/documents\/quote\/?(?:[?#].*)?$/i.test(value) || /\/documents\/quote\//i.test(value);
   }
 
   function withDocumentStatus_(url, status) {
