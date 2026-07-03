@@ -61,6 +61,14 @@ function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
 
+  if (stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review') {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['reviewer'])) return 'Missing reviewer.';
+    if (!firstString(payload, ['reviewSummary', 'review_summary'])) return 'Missing review summary.';
+    if (!firstString(payload, ['recommendation'])) return 'Missing recommendation.';
+    return '';
+  }
+
   if (stage === 'step2' || stage === 'step_2' || stage === 'technical-intake' || stage === 'technical_intake') {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['technicalRequirement', 'technicalScope', 'briefRequirement', 'brief_requirement'])) return 'Missing technical requirement.';
