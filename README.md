@@ -18,7 +18,7 @@ The first launchable version does one controlled commercial lifecycle well:
 10. Move qualified leads into vendor-safe review or vendor pricing before any quote is prepared.
 11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
 12. Approve the latest pricing revision before quote preparation.
-13. Prepare a quote draft state using the frontend Quote template link.
+13. Prepare a quote draft state using the private Workspace Quote document route.
 14. Approve the quote draft before sending.
 15. Record email attempts in an email log sheet.
 16. Return a clear success or failure response.
@@ -64,20 +64,20 @@ Run `setupLaunchSheets` after pushing Apps Script changes to create any missing 
 | `TEST_EMAIL` | Optional. Recipient for Apps Script test emails. |
 | `DEFAULT_MARGIN_TYPE` | Optional. `percentage` or `fixed`. Defaults to `percentage`. |
 | `DEFAULT_MARGIN_VALUE` | Optional. Default margin value. Defaults to `25`. |
-| `CAPABILITY_STATEMENT_URL` | Optional. Existing frontend Capability Statement route. |
-| `QUOTE_TEMPLATE_URL` | Optional. Existing frontend Quote route used to build the tracked quote draft link. |
+| `FRONTEND_BASE_URL` | Optional but recommended. Absolute frontend origin used to build private Workspace document links, for example `https://<midts-frontend-domain>`. |
+| `CAPABILITY_STATEMENT_URL` | Optional. Controlled capability statement URL. Do not point this at public `/documents/*` template routes. |
+| `QUOTE_TEMPLATE_URL` | Optional override for the private Workspace quote route. If omitted, backend uses `FRONTEND_BASE_URL + /workspace/documents/quote`; public `/documents/quote` values are ignored. |
 
 At least one of `STEP2_FORM_URL` or `STEP2_FORM_BASE_URL` should exist before real client launch. If both are missing, the acknowledgement email asks the client to reply for help instead of giving a broken link.
 
 ## Public Endpoint
 
-The deployed Apps Script Web App `/exec` URL is the only URL that should be placed into the frontend build environment.
+The deployed Apps Script Web App `/exec` URL is the backend target used by the Cloud Run gateway.
 
-Frontend hosting must use:
+Frontend hosting must use the Cloud Run gateway URL, not Apps Script directly:
 
 ```text
-NEXT_PUBLIC_MIDTS_WEBHOOK_URL=<apps-script-exec-url>
-NEXT_PUBLIC_MIDTS_WEBHOOK_TOKEN=<same-value-as-WEBSITE_WEBHOOK_TOKEN>
+NEXT_PUBLIC_MIDTS_GATEWAY_URL=<cloud-run-gateway-url>/webhook
 ```
 
 Internal review emails use `WEB_APP_URL` and `DECISION_TOKEN` to generate decision links for:
