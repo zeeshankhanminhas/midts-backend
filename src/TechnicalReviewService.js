@@ -42,6 +42,7 @@ var MidtsTechnicalReviewService = (function () {
       now,
       internalNotes
     ]);
+    writeInternalNotes_(internalNotes);
 
     var leadUpdate = MidtsSheetService.updateLeadById(leadId, {
       'Review Status': 'Technical Review Complete',
@@ -60,6 +61,33 @@ var MidtsTechnicalReviewService = (function () {
       recommendation: recommendation,
       nextAction: leadUpdate.lead['Next Action']
     };
+  }
+
+  function writeInternalNotes_(internalNotes) {
+    var spreadsheetId = MidtsConfig.getSpreadsheetId();
+    var spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    if (!spreadsheet) return;
+
+    var sheet = spreadsheet.getSheetByName(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS);
+    if (!sheet || sheet.getLastRow() < 2) return;
+
+    var lastColumn = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+    var internalNotesColumn = 0;
+
+    for (var index = 0; index < headers.length; index += 1) {
+      if (String(headers[index] || '').trim() === 'Internal Notes') {
+        internalNotesColumn = index + 1;
+        break;
+      }
+    }
+
+    if (!internalNotesColumn) {
+      internalNotesColumn = lastColumn + 1;
+      sheet.getRange(1, internalNotesColumn).setValue('Internal Notes');
+    }
+
+    sheet.getRange(sheet.getLastRow(), internalNotesColumn).setValue(internalNotes || '');
   }
 
   function normalizeRecommendation_(value) {
