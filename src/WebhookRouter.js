@@ -20,6 +20,10 @@ var MidtsWebhookRouter = (function () {
         return MidtsResponseService.failure(tokenResult.code, tokenResult.message, { requestId: requestId });
       }
 
+      if (isWorkspaceReadPayload_(payload)) {
+        return handleWorkspaceRead_(payload, requestId);
+      }
+
       if (isTechnicalReviewPayload_(payload)) {
         return handleTechnicalReview_(payload, requestId);
       }
@@ -155,6 +159,31 @@ var MidtsWebhookRouter = (function () {
     });
   }
 
+  function handleWorkspaceRead_(payload, requestId) {
+    var action = String(payload.action || '').toLowerCase();
+    if (action !== 'listpendingtechnicalreviews') {
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'workspace_read_failed',
+        message: 'UNSUPPORTED_WORKSPACE_READ_ACTION',
+        payload: scrubPayload(payload),
+        source: payload.source || 'WorkspaceRead'
+      });
+      return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported.', { requestId: requestId });
+    }
+
+    var readResult = MidtsWorkspaceReadService.listPendingTechnicalReviews();
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: 'workspace_read_success',
+      message: 'Pending technical reviews listed',
+      payload: scrubPayload(payload),
+      source: payload.source || 'WorkspaceRead'
+    });
+
+    return MidtsResponseService.success(Object.assign({ requestId: requestId }, readResult));
+  }
+
   function handleTechnicalReview_(payload, requestId) {
     var reviewResult = MidtsTechnicalReviewService.recordReview(payload);
     if (!reviewResult.ok) {
@@ -205,6 +234,12 @@ var MidtsWebhookRouter = (function () {
     }
 
     return Object.assign({}, e.parameter || {});
+  }
+
+  function isWorkspaceReadPayload_(payload) {
+    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
+    var action = String(payload.action || '').toLowerCase();
+    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews';
   }
 
   function isStep2Payload_(payload) {
