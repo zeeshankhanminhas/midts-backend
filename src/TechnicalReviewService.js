@@ -15,6 +15,7 @@ var MidtsTechnicalReviewService = (function () {
 
     var reviewer = String(input.reviewer || 'MIDTS Reviewer').trim();
     var summary = String(input.reviewSummary || input.review_summary || '').trim();
+    var internalNotes = String(input.internalNotes || input.internal_notes || '').trim();
     var recommendation = normalizeRecommendation_(input.recommendation);
     if (!summary) return { ok: false, code: 'REVIEW_SUMMARY_REQUIRED', message: 'Review summary is required.' };
     if (!recommendation) return { ok: false, code: 'RECOMMENDATION_REQUIRED', message: 'Recommendation must be Qualified, Needs More Info, Nurture, or Not Suitable.' };
@@ -38,7 +39,8 @@ var MidtsTechnicalReviewService = (function () {
       JSON.stringify(clarifications),
       recommendation,
       now,
-      now
+      now,
+      internalNotes
     ]);
 
     var leadUpdate = MidtsSheetService.updateLeadById(leadId, {
