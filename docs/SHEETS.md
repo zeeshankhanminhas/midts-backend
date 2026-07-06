@@ -8,9 +8,14 @@ The backend creates or updates these by running `setupLaunchSheets()` from Apps 
 
 ```text
 Leads
+Technical Intake
+Technical Reviews
+Vendor Pricing
 Webhook Logs
 Email Logs
 ```
+
+Later lifecycle services also create controlled operational tabs such as `Vendor Safe Packages`, `Projects`, `Delivery Records`, `Handover Records`, `Invoices`, `Vendor Requests`, `Quote Responses`, and `Documents` when those slices are active.
 
 ## Leads
 
@@ -30,21 +35,21 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Brief Requirement | Client requirement text. |
 | Source | Website/source label. |
 | Page URL | Submitting page URL, if supplied. |
-| Status | Initial value is `New`. |
+| Status | Current broad lifecycle status. |
 | Raw Payload JSON | Audit copy of submitted payload. |
 
 ### Lifecycle Fields
 
 | Column | Purpose |
 | --- | --- |
-| Lifecycle Status | Current lead lifecycle state. Starts as `New Lead`. |
-| Review Status | Current review state. Starts as `Pending Review`. |
+| Lifecycle Status | Current lead lifecycle state. |
+| Review Status | Current technical/qualification review state. |
 | Qualification Decision | Human decision: `Qualified`, `Needs More Info`, `Nurture`, or `Not Suitable`. |
 | Human Approval | Human approval marker before routing. |
-| Reviewer | Person who reviewed the lead. |
-| Review Notes | Human review notes. |
-| Decision Timestamp | Time the human decision was made. |
-| Next Action | The next visible action. Starts as `Review lead`. |
+| Reviewer | Person who reviewed or approved the lead. |
+| Review Notes | Technical Review summary mirrored from the detail tab. |
+| Decision Timestamp | Time the Qualification decision was made. |
+| Next Action | The next visible action. |
 | Next Action Due | When the next action should happen. |
 
 ### Document Fields
@@ -57,8 +62,8 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Capability Statement Link | Route/link to the existing frontend Capability Statement. |
 | Quote Required | Whether quote path is required. |
 | Quote Reference | Quote reference when created. |
-| Quote Status | Quote state, such as `Draft Needed`, `Sent`, or `Approved`. |
-| Quote Document Link | Route/link to the existing frontend Quote. |
+| Quote Status | Quote state. |
+| Quote Document Link | Route/link to the existing private Workspace Quote. |
 | Quote Sent At | Timestamp when quote was sent. |
 
 ### Nurture And Closure Fields
@@ -77,17 +82,50 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Closed At | Timestamp when closed. |
 | Last Updated At | Last backend lifecycle update timestamp. |
 
+## Technical Intake
+
+| Column | Purpose |
+| --- | --- |
+| Technical Intake ID | Backend-generated Step 2 identifier. |
+| Lead ID | Parent lead identifier. |
+| Completed At | Timestamp for Step 2 completion. |
+| Service Type / Technical Scope / Materials / Quantity / Deadline | Client technical requirement context. |
+| Files Provided / File Links | File readiness and uploaded/reference links. |
+| NDA Required / Confidentiality Notes | Confidentiality context. |
+| Vendor Safe Package Required / Vendor Safe Package Ready | Vendor-safe routing context. |
+| Budget Range / Timing Notes / Technical Notes | Commercial and delivery context. |
+| Raw Payload JSON | Audit copy of submitted Step 2 payload. |
+
+## Technical Reviews
+
+| Column | Purpose |
+| --- | --- |
+| Technical Review ID | Backend-generated review identifier. |
+| Lead ID | Parent lead identifier. |
+| Technical Intake ID | Step 2 record used for the review. |
+| Created At | Timestamp when review was recorded. |
+| Reviewer | Workspace reviewer. |
+| Review Status | Review row status, normally `Completed`. |
+| Review Summary | Technical assessment. |
+| File Review | File/drawing observations as JSON list. |
+| Risks | Risk notes as JSON list. |
+| Clarifications | Clarification notes as JSON list. |
+| Recommendation | `Qualified`, `Needs More Info`, `Nurture`, or `Not Suitable`. |
+| Approved At | Timestamp when Technical Review was completed. |
+| Last Updated At | Last update timestamp. |
+| Internal Notes | Internal-only notes from the Workspace reviewer. |
+
 ## Webhook Logs
 
 | Column | Purpose |
 | --- | --- |
 | Logged At | Timestamp of attempt. |
 | Request ID | Backend request identifier. |
-| Outcome | `success`, `rejected`, `failed`, or `error`. |
+| Outcome | Success, rejected, failed, duplicate, guard, or error outcome. |
 | Message | Short status/error message. |
-| Submission ID | Frontend submission ID if available. |
+| Submission ID | Frontend submission ID or lead reference if available. |
 | Email | Submitted email if available. |
-| Source | Source label. |
+| Source | Source route/service label. |
 | Payload JSON | Redacted submitted payload. |
 
 ## Email Logs
@@ -103,15 +141,30 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Status | `sent`, `failed`, or `skipped`. |
 | Message | Delivery result or error message. |
 
+## Workspace Queue Rules
+
+### Pending Technical Reviews
+
+A lead appears in `/workspace/technical-review` when:
+
+1. Step 2 is complete.
+2. `Review Status` is `Pending Review` or equivalent.
+3. A matching `Technical Intake` row exists.
+4. No completed `Technical Reviews` row exists for that lead.
+
+### Pending Qualification Decisions
+
+A lead appears in `/workspace/qualification` when:
+
+1. A completed `Technical Reviews` row exists for the lead.
+2. `Qualification Decision` is blank.
+3. `Human Approval` is not `Approved`.
+
 ## Launch Rule
 
-A website submission is not considered fully complete unless:
+A lifecycle pass is not considered complete unless:
 
-1. The response body returns `ok: true`.
-2. A row appears in `Leads`.
-3. `Lifecycle Status` is `New Lead`.
-4. `Review Status` is `Pending Review`.
-5. `Next Action` is `Review lead`.
-6. A corresponding `success` row appears in `Webhook Logs`.
-7. A client acknowledgement `sent` row appears in `Email Logs`.
-8. An internal review notification `sent` row appears in `Email Logs`.
+1. Step 1 returns `ok: true` and writes `Leads` plus `Webhook Logs`.
+2. Step 2 writes `Technical Intake`, updates `Leads`, and logs/email-notifies internally.
+3. Technical Review writes `Technical Reviews`, updates `Leads`, and logs `technical_review_success`.
+4. Qualification Decision updates `Leads`, sends/logs the correct outcome email, and records the decision outcome in `Webhook Logs`.
