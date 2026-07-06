@@ -75,13 +75,7 @@ var MidtsVendorRequestService = (function () {
         return htmlPage_('Vendor request failed', '<p>The internal action token is invalid.</p>');
       }
 
-      var result = createAndSendRequest_({
-        leadId: params.leadId,
-        vendorName: params.vendorName,
-        vendorEmail: params.vendorEmail,
-        packageLink: params.packageLink,
-        vendorSafeFilesConfirmed: params.vendorSafeFilesConfirmed
-      });
+      var result = createAndSendRequest_(params);
       if (!result.ok) {
         return htmlPage_('Vendor request blocked', '<p>' + escapeHtml_(result.message) + '</p>');
       }
@@ -94,6 +88,10 @@ var MidtsVendorRequestService = (function () {
     } catch (error) {
       return htmlPage_('Vendor request failed', '<p>' + escapeHtml_(errorMessage_(error)) + '</p>');
     }
+  }
+
+  function createAndSendRequest(input) {
+    return createAndSendRequest_(input || {});
   }
 
   function renderVendorPricingForm(e) {
@@ -256,82 +254,82 @@ var MidtsVendorRequestService = (function () {
       lockAcquired = lock.tryLock(10000);
       if (!lockAcquired) return { ok: false, message: 'Vendor request is busy. Submit again in a moment.' };
 
-    var leadId = String(input.leadId || '').trim();
-    var vendorName = String(input.vendorName || '').trim();
-    var vendorEmail = String(input.vendorEmail || '').trim();
-    var packageLink = String(input.packageLink || '').trim();
-    var vendorSafeFilesConfirmed = String(input.vendorSafeFilesConfirmed || '').toLowerCase() === 'yes';
+      var leadId = String(input.leadId || '').trim();
+      var vendorName = String(input.vendorName || '').trim();
+      var vendorEmail = String(input.vendorEmail || '').trim();
+      var packageLink = String(input.packageLink || '').trim();
+      var vendorSafeFilesConfirmed = String(input.vendorSafeFilesConfirmed || '').toLowerCase() === 'yes';
 
-    if (!leadId || !vendorName || !vendorEmail || !packageLink) {
-      return { ok: false, message: 'Vendor name, email and vendor-safe package link are required.' };
-    }
-    if (!vendorSafeFilesConfirmed) return { ok: false, message: 'Confirm the vendor-safe folder contains the approved files before sending.' };
-    if (!isEmail_(vendorEmail)) return { ok: false, message: 'Enter a valid vendor email address.' };
-    if (!/^https:\/\//i.test(packageLink)) return { ok: false, message: 'Vendor-safe package link must use https://.' };
+      if (!leadId || !vendorName || !vendorEmail || !packageLink) {
+        return { ok: false, message: 'Vendor name, email and vendor-safe package link are required.' };
+      }
+      if (!vendorSafeFilesConfirmed) return { ok: false, message: 'Confirm the vendor-safe folder contains the approved files before sending.' };
+      if (!isEmail_(vendorEmail)) return { ok: false, message: 'Enter a valid vendor email address.' };
+      if (!/^https:\/\//i.test(packageLink)) return { ok: false, message: 'Vendor-safe package link must use https://.' };
 
-    var leadResult = MidtsSheetService.findLeadById(leadId);
-    if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
-    if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Vendor Pricing') {
-      return { ok: false, message: 'Lead is not in Vendor Pricing.' };
-    }
-    if (findOpenRequestForLeadAndVendor_(leadId, vendorEmail)) {
-      return { ok: false, message: 'An open vendor pricing request already exists for this vendor and lead.' };
-    }
+      var leadResult = MidtsSheetService.findLeadById(leadId);
+      if (!leadResult) return { ok: false, message: 'Lead not found: ' + leadId };
+      if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Vendor Pricing') {
+        return { ok: false, message: 'Lead is not in Vendor Pricing.' };
+      }
+      if (findOpenRequestForLeadAndVendor_(leadId, vendorEmail)) {
+        return { ok: false, message: 'An open vendor pricing request already exists for this vendor and lead.' };
+      }
 
-    var now = new Date();
-    var requestId = 'VRQ-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
-    var rawToken = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
-    var tokenHash = hashToken_(rawToken);
-    var request = {
-      'Request ID': requestId,
-      'Lead ID': leadId,
-      'Quote Reference': leadResult.lead['Quote Reference'] || '',
-      'Created At': now,
-      'Sent At': '',
-      'Vendor Name': vendorName,
-      'Vendor Email': vendorEmail,
-      'Vendor Package Link': packageLink,
-      'Request Token Hash': tokenHash,
-      'Request Status': 'Pending Send',
-      'Submitted At': '',
-      'Vendor Cost': '',
-      'Vendor Currency': '',
-      'Lead Time': '',
-      'Quote Valid Until': '',
-      'Exclusions': '',
-      'Vendor Reference': '',
-      'Vendor Notes': '',
-      'Pricing ID': '',
-      'Last Updated At': now
-    };
-    appendRequest_(request);
+      var now = new Date();
+      var requestId = 'VRQ-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
+      var rawToken = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+      var tokenHash = hashToken_(rawToken);
+      var request = {
+        'Request ID': requestId,
+        'Lead ID': leadId,
+        'Quote Reference': leadResult.lead['Quote Reference'] || '',
+        'Created At': now,
+        'Sent At': '',
+        'Vendor Name': vendorName,
+        'Vendor Email': vendorEmail,
+        'Vendor Package Link': packageLink,
+        'Request Token Hash': tokenHash,
+        'Request Status': 'Pending Send',
+        'Submitted At': '',
+        'Vendor Cost': '',
+        'Vendor Currency': '',
+        'Lead Time': '',
+        'Quote Valid Until': '',
+        'Exclusions': '',
+        'Vendor Reference': '',
+        'Vendor Notes': '',
+        'Pricing ID': '',
+        'Last Updated At': now
+      };
+      appendRequest_(request);
 
-    var pricingUrl = buildVendorPricingUrl_(requestId, rawToken);
-    var emailResult = sendVendorRequestEmail_(request, leadResult.lead, pricingUrl);
-    var requestResult = findRequestById_(requestId);
-    if (!emailResult.ok) {
-      updateRequest_(requestResult, { 'Request Status': 'Send Failed', 'Last Updated At': new Date() });
-      return { ok: false, message: 'Vendor request could not be emailed: ' + emailResult.message };
-    }
+      var pricingUrl = buildVendorPricingUrl_(requestId, rawToken);
+      var emailResult = sendVendorRequestEmail_(request, leadResult.lead, pricingUrl);
+      var requestResult = findRequestById_(requestId);
+      if (!emailResult.ok) {
+        updateRequest_(requestResult, { 'Request Status': 'Send Failed', 'Last Updated At': new Date() });
+        return { ok: false, message: 'Vendor request could not be emailed: ' + emailResult.message };
+      }
 
-    updateRequest_(requestResult, { 'Request Status': 'Sent', 'Sent At': new Date(), 'Last Updated At': new Date() });
-    MidtsSheetService.updateLeadById(leadId, {
-      'Next Action': 'Await vendor pricing',
-      'Next Action Due': new Date(),
-      'Vendor Pricing Status': 'Vendor Request Sent',
-      'Last Updated At': new Date()
-    });
+      updateRequest_(requestResult, { 'Request Status': 'Sent', 'Sent At': new Date(), 'Last Updated At': new Date() });
+      MidtsSheetService.updateLeadById(leadId, {
+        'Next Action': 'Await vendor pricing',
+        'Next Action Due': new Date(),
+        'Vendor Pricing Status': 'Vendor Request Sent',
+        'Last Updated At': new Date()
+      });
 
-    MidtsLogger.logWebhookAttempt({
-      requestId: requestId,
-      outcome: 'vendor_pricing_request_sent',
-      message: 'Vendor pricing request sent',
-      payload: { leadId: leadId, vendorName: vendorName, vendorEmail: vendorEmail },
-      submissionId: leadResult.lead['Submission ID'] || '',
-      email: vendorEmail,
-      source: 'Vendor Request Service'
-    });
-    return { ok: true, leadId: leadId, requestId: requestId, vendorEmail: vendorEmail };
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'vendor_pricing_request_sent',
+        message: 'Vendor pricing request sent',
+        payload: { leadId: leadId, vendorName: vendorName, vendorEmail: vendorEmail },
+        submissionId: leadResult.lead['Submission ID'] || '',
+        email: vendorEmail,
+        source: 'Vendor Request Service'
+      });
+      return { ok: true, leadId: leadId, requestId: requestId, vendorEmail: vendorEmail };
     } finally {
       if (lockAcquired) lock.releaseLock();
     }
@@ -555,6 +553,7 @@ var MidtsVendorRequestService = (function () {
     ensureVendorRequestSheet: ensureVendorRequestSheet,
     renderRequestSetup: renderRequestSetup,
     handleRequestSetupSubmission: handleRequestSetupSubmission,
+    createAndSendRequest: createAndSendRequest,
     renderVendorPricingForm: renderVendorPricingForm,
     handleVendorPricingSubmission: handleVendorPricingSubmission,
     sendRequestSetupEmail: sendRequestSetupEmail,
