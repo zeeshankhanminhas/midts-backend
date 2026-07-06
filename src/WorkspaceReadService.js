@@ -28,6 +28,34 @@ var MidtsWorkspaceReadService = (function () {
     };
   }
 
+  function listPendingQualificationDecisions() {
+    var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
+    var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
+    var reviews = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS, MidtsSheetService.TECHNICAL_REVIEW_HEADERS);
+    var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
+    var latestReviewsByLead = latestByLeadId_(reviews, 'Created At');
+
+    var pending = leads.filter(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      if (!leadId) return false;
+      if (qualificationDecisionComplete_(lead)) return false;
+      return Boolean(latestReviewsByLead[leadId] && latestReviewsByLead[leadId]['Technical Review ID']);
+    }).map(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      return toPendingQualificationRecord_(lead, latestIntakesByLead[leadId], latestReviewsByLead[leadId]);
+    });
+
+    pending.sort(function (a, b) {
+      return Number(new Date(b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.reviewedAt || a.submittedAt || a.dateCreated || 0));
+    });
+
+    return {
+      ok: true,
+      count: pending.length,
+      decisions: pending
+    };
+  }
+
   function readSheetObjects_(sheetName, expectedHeaders) {
     var spreadsheetId = MidtsConfig.getSpreadsheetId();
     var spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
@@ -92,6 +120,45 @@ var MidtsWorkspaceReadService = (function () {
     };
   }
 
+  function toPendingQualificationRecord_(lead, intake, review) {
+    var reviewCreatedAt = review['Created At'] || review['Approved At'] || lead['Last Updated At'] || lead['Created At'];
+    var base = intake ? toPendingReviewRecord_(lead, intake) : {
+      leadId: clean_(lead['Lead ID']),
+      technicalIntakeId: '',
+      client: clean_(lead['Full Name']),
+      personName: clean_(lead['Full Name']),
+      company: clean_(lead['Company']),
+      email: clean_(lead['Email']),
+      lead: clean_(lead['Brief Requirement']) || clean_(lead['Project Type']) || 'Qualification decision',
+      projectType: clean_(lead['Project Type']),
+      briefRequirement: clean_(lead['Brief Requirement']),
+      technicalRequirement: '',
+      timelineUrgency: '',
+      filesDrawingsReady: '',
+      requirementComplexity: '',
+      filesProvided: clean_(lead['Files Provided']),
+      fileLinks: [],
+      lifecycleStatus: clean_(lead['Lifecycle Status']),
+      reviewStatus: clean_(lead['Review Status']),
+      status: clean_(lead['Review Status']) || clean_(lead['Lifecycle Status']),
+      submittedAt: toIso_(lead['Step 2 Completed At'] || lead['Last Updated At'] || lead['Created At']),
+      dateCreated: toIso_(lead['Created At'])
+    };
+
+    base.technicalReviewId = clean_(review['Technical Review ID']);
+    base.reviewSummary = clean_(review['Review Summary']);
+    base.risks = parseReviewList_(review['Risks']);
+    base.clarifications = parseReviewList_(review['Clarifications']);
+    base.internalNotes = clean_(review['Internal Notes']);
+    base.recommendation = clean_(review['Recommendation']);
+    base.reviewedAt = toIso_(reviewCreatedAt);
+    base.lifecycleStatus = clean_(lead['Lifecycle Status']);
+    base.reviewStatus = clean_(lead['Review Status']);
+    base.status = clean_(lead['Qualification Decision']) || clean_(lead['Review Status']) || clean_(lead['Lifecycle Status']);
+    base.nextAction = clean_(lead['Next Action']);
+    return base;
+  }
+
   function step2Complete_(lead) {
     return equivalent_(lead['Step 2 Status'], ['completed']) || equivalent_(lead['Status'], ['step 2 completed']) || Boolean(lead['Step 2 Completed At']);
   }
@@ -102,6 +169,10 @@ var MidtsWorkspaceReadService = (function () {
 
   function technicalReviewComplete_(lead, review) {
     return equivalent_(lead['Review Status'], ['technical review complete', 'completed', 'complete']) || Boolean(review && review['Technical Review ID']);
+  }
+
+  function qualificationDecisionComplete_(lead) {
+    return clean_(lead['Human Approval']) === 'Approved' || Boolean(clean_(lead['Qualification Decision']));
   }
 
   function equivalent_(value, expected) {
@@ -127,6 +198,16 @@ var MidtsWorkspaceReadService = (function () {
     return text.split(/\r?\n|,|;/).map(clean_).filter(Boolean);
   }
 
+  function parseReviewList_(value) {
+    var text = clean_(value);
+    if (!text) return [];
+    try {
+      var parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(clean_).filter(Boolean);
+    } catch (error) {}
+    return splitList_(text);
+  }
+
   function parseJson_(value) {
     try {
       return JSON.parse(clean_(value) || '{}') || {};
@@ -140,6 +221,7 @@ var MidtsWorkspaceReadService = (function () {
   }
 
   return {
-    listPendingTechnicalReviews: listPendingTechnicalReviews
+    listPendingTechnicalReviews: listPendingTechnicalReviews,
+    listPendingQualificationDecisions: listPendingQualificationDecisions
   };
 })();
