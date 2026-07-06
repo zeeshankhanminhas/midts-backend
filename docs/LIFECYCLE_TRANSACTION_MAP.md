@@ -24,11 +24,11 @@ Target architecture:
 |---:|---|---|---|---|---|---|---|---|---|
 | 1 | Step 1 enquiry | Client | `NEW-MIDTS/#contact` | `formStage=step1`, `lead_id`, `full_name`, `work_email`, `company`, `project_type`, `brief_requirement`, `source`, `pageUrl` | `WebhookRouter.handlePost` -> `LeadService.createLead` | `Leads`, `Webhook Logs`, `Email Logs` | Client acknowledgement / Step 2 link | Yes | Keep as gateway route. |
 | 2 | Step 2 technical intake | Client | `NEW-MIDTS/step-2?leadId=...` | `formStage=step2`, `leadId`, `submissionId`, `technicalRequirement`, `timelineUrgency`, `filesDrawingsReady`, `requirementComplexity`, `filesProvided`, `fileLinks`, `source`, `pageUrl` | `WebhookRouter.handlePost` -> `TechnicalIntakeService.completeStep2` | `Technical Intake`, `Leads`, `Webhook Logs`, `Email Logs` | Internal review notification | Yes | File upload is manual/Drive-link until secure upload exists. |
-| 3 | Technical review | MIDTS reviewer | `NEW-MIDTS/workspace/technical-review` | `formStage=technicalReview`, `action=recordTechnicalReview`, `leadId`, `reviewer`, `reviewSummary`, `risks`, `clarifications`, `recommendation`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `TechnicalReviewService.recordReview` | `Technical Reviews`, `Leads`, `Webhook Logs` | None dedicated; review is prerequisite for decision | Yes | Frontend route, gateway validation, and Apps Script handler are in place. Decision buttons still use the existing Apps Script fallback until the decision slice migrates. |
-| 4 | Qualification decision | MIDTS reviewer | Apps Script `WEB_APP_URL?action=decision&leadId=...&decision=...&token=...` | `leadId`, `decision`, `token`, optional `reviewer` | `DecisionService.handleDecisionRequest` -> `DecisionService.applyDecision` | `Leads`, `Webhook Logs`, `Email Logs` | Decision outcome email; qualified workflow email | No | Should move behind frontend review/decision page after technical review is captured. |
-| 5 | Needs more info decision | MIDTS reviewer | Same Apps Script decision URL | `leadId`, `decision=needs-more-info`, `token`, optional `reviewer` | `DecisionService.handleDecisionRequest` | `Leads`, `Webhook Logs`, `Email Logs` | Client more-info email | No | Same migration as decision action. |
-| 6 | Nurture decision | MIDTS reviewer | Same Apps Script decision URL | `leadId`, `decision=nurture`, `token`, optional `reviewer` | `DecisionService.handleDecisionRequest` | `Leads`, `Webhook Logs`, `Email Logs` | Client nurture email | No | Same migration as decision action. |
-| 7 | Not suitable decision | MIDTS reviewer | Same Apps Script decision URL | `leadId`, `decision=not-suitable`, `token`, optional `reviewer` | `DecisionService.handleDecisionRequest` | `Leads`, `Webhook Logs`, `Email Logs` | Client decline/update email | No | Same migration as decision action. |
+| 3 | Technical review | MIDTS reviewer | `NEW-MIDTS/workspace/technical-review` | `formStage=technicalReview`, `action=recordTechnicalReview`, `leadId`, `reviewer`, `reviewSummary`, `risks`, `clarifications`, `internalNotes`, `recommendation`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `TechnicalReviewService.recordReview` | `Technical Reviews`, `Leads`, `Webhook Logs` | None dedicated; review is prerequisite for decision | Yes | Reference Workspace/gateway/App Script vertical slice. |
+| 4 | Qualification decision | MIDTS reviewer | `NEW-MIDTS/workspace/qualification` -> `/workspace/qualification/review?leadId=...` | `formStage=qualificationDecision`, `action=recordQualificationDecision`, `leadId`, `decision=qualified`, `reviewer`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `DecisionService.applyDecision` | `Leads`, `Webhook Logs`, `Email Logs` | Decision outcome email; qualified workflow email | Yes | Uses the existing DecisionService and lifecycle guards through the gateway. |
+| 5 | Needs more info decision | MIDTS reviewer | `NEW-MIDTS/workspace/qualification` -> `/workspace/qualification/review?leadId=...` | `formStage=qualificationDecision`, `action=recordQualificationDecision`, `leadId`, `decision=needs-more-info`, `reviewer`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `DecisionService.applyDecision` | `Leads`, `Webhook Logs`, `Email Logs` | Client more-info email | Yes | Uses the existing DecisionService and duplicate/conflict guards through the gateway. |
+| 6 | Nurture decision | MIDTS reviewer | `NEW-MIDTS/workspace/qualification` -> `/workspace/qualification/review?leadId=...` | `formStage=qualificationDecision`, `action=recordQualificationDecision`, `leadId`, `decision=nurture`, `reviewer`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `DecisionService.applyDecision` | `Leads`, `Webhook Logs`, `Email Logs` | Client nurture email | Yes | Uses the existing DecisionService and lifecycle updates through the gateway. |
+| 7 | Not suitable decision | MIDTS reviewer | `NEW-MIDTS/workspace/qualification` -> `/workspace/qualification/review?leadId=...` | `formStage=qualificationDecision`, `action=recordQualificationDecision`, `leadId`, `decision=not-suitable`, `reviewer`, `source`, `pageUrl` | Gateway -> `WebhookRouter.handlePost` -> `DecisionService.applyDecision` | `Leads`, `Webhook Logs`, `Email Logs` | Client decline/update email | Yes | Uses the existing DecisionService and lifecycle closure through the gateway. |
 | 8 | Vendor-safe package ready | MIDTS reviewer | Apps Script workflow action URL `action=vendorSafeReady` | `leadId`, `action`, `token`, optional `reviewer` | `WorkflowActionService.handleActionRequest` -> `VendorPricingService.markVendorSafePackageReady` -> `VendorSafePackageService.preparePackage` | `Vendor Safe Packages`, `Leads`, `Webhook Logs`, `Email Logs` | Vendor request setup email if useful | No | Move to frontend `/internal/vendor-safe` with confirmation that approved files were placed in Drive. |
 | 9 | Vendor pricing request setup | MIDTS commercial | Apps Script form `action=vendorRequestSetup` | `leadId`, `token`, `vendorName`, `vendorEmail`, `packageLink`, `vendorSafeFilesConfirmed` | `VendorRequestService.handleRequestSetupSubmission` -> `createAndSendRequest_` | `Vendor Requests`, `Leads`, `Email Logs` | Vendor pricing request email | No | Move to frontend `/internal/vendor-request` and submit through gateway. |
 | 10 | Vendor commercial response | Vendor | `NEW-MIDTS/vendor-pricing?requestId=...&token=...` after latest change | `formStage=vendorPricing`, `action=vendorPricing`, `requestId`, `token`, `vendorCost`, `vendorCurrency`, `leadTime`, `quoteValidUntil`, `vendorReference`, `exclusions`, `notes` | Gateway -> Apps Script `doPost(action=vendorPricing)` -> `VendorRequestService.handleVendorPricingSubmission` -> `VendorPricingService.recordVendorPricing` | `Vendor Requests`, `Vendor Pricing`, `Leads`, `Webhook Logs`, `Email Logs` | Internal margin approval/workflow action email | Partial | Gateway path exists; requires deployed Apps Script `VENDOR_PRICING_FORM_URL` and updated Cloud Run. Old Apps Script form remains fallback. |
@@ -50,7 +50,7 @@ Target architecture:
 | Template | Frontend route | Current lifecycle use | Gap |
 |---|---|---|---|
 | Requirement Sheet | `/workspace/documents/requirement-sheet` | Represents Step 1 + Step 2 intake | Not linked as transaction output after Step 2. |
-| Technical Review | `/workspace/documents/technical-review` | Supports technical review decision | Transaction form now exists at `/workspace/technical-review`; next gap is decision migration. |
+| Technical Review | `/workspace/documents/technical-review` | Supports technical review decision | Transaction form exists at `/workspace/technical-review`; Qualification now has its own Workspace queue. |
 | Capability Statement | `/workspace/documents/capability-statement` | Optional controlled support document | Property exists; not tied to all decision paths. |
 | Proposal | `/workspace/documents/proposal` | Pre-quote/support proposal | Not yet a controlled lifecycle output. |
 | Statement of Work | `/workspace/documents/statement-of-work` | Delivery scope control | Not yet generated from accepted quote/project. |
@@ -64,21 +64,22 @@ Target architecture:
 
 | Surface | Source | Replacement |
 |---|---|---|
-| `DecisionService.buildDecisionUrl` | Apps Script `WEB_APP_URL?action=decision...` | Frontend `/internal/review-decision?leadId=...&token=...` -> gateway. |
 | `WorkflowActionService.buildActionUrl` | Apps Script `WEB_APP_URL?action=vendorSafeReady/approveMargin/prepareQuote/approveQuote/sendQuote...` | Frontend internal action pages -> gateway. |
 | `VendorRequestService.renderRequestSetup` | Apps Script HTML form | Frontend `/internal/vendor-request` -> gateway. |
 | `VendorRequestService.renderVendorPricingForm` | Apps Script HTML vendor form | Frontend `/vendor-pricing` -> gateway; keep fallback only. |
 | `QuoteDeliveryService.renderClientResponse` | Apps Script HTML quote response fallback | Frontend `/quote-acceptance` -> gateway. |
 
+`DecisionService.handleDecisionRequest` remains as an Apps Script emergency fallback, but the normal Qualification transaction is now the Workspace/gateway route.
+
 ## Migration Order
 
 Migrate one action at a time in this order:
 
-1. Technical review + decision spine.
-   - Technical review form is now at `NEW-MIDTS/workspace/technical-review`.
+1. Technical review + Qualification decision spine.
+   - Technical review form is at `NEW-MIDTS/workspace/technical-review`.
    - Submit `recordTechnicalReview` through gateway.
-   - Next: replace Step 2 email decision buttons with a single `Complete Technical Review` link.
-   - Next: after review is recorded, show allowed decision choices.
+   - Qualification queue is at `NEW-MIDTS/workspace/qualification`.
+   - Submit `recordQualificationDecision` through gateway.
 2. Vendor-safe ready.
    - Create frontend vendor-safe confirmation page.
    - Include Drive folder link, file checklist, and confirmation.
@@ -103,9 +104,8 @@ Every migrated action should follow this shape:
 ```text
 formStage=<transaction-name>
 action=<backend-action>
-token=<scoped-action-token>
 leadId/requestId/projectId/quoteId=<primary reference>
-actor=<human/system actor where useful>
+actor/reviewer=<human/system actor where useful>
 payload fields=<transaction-specific data>
 source=<frontend route name>
 pageUrl=<browser URL>
