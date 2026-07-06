@@ -156,8 +156,17 @@ function testTechnicalReviewQualified() {
     fileReview: ['Technical inputs reviewed for scope completeness.'],
     risks: ['Confirm final source data before work commences.'],
     clarifications: ['No additional clarification required for this test record.'],
+    internalNotes: 'Internal notes captured by the Workspace Technical Review slice.',
     recommendation: 'Qualified'
   });
+}
+
+function testWorkspaceQualificationRead() {
+  return postSampleWorkspaceRead_('listPendingQualificationDecisions', 'Apps Script Qualification Read Test').getContent();
+}
+
+function testQualificationDecisionGatewayQualified() {
+  return postSampleQualificationDecision_('qualified').getContent();
 }
 
 function testDecisionQualified() {
@@ -340,6 +349,43 @@ function postSampleStep2_(leadId, submissionId) {
     budgetRange: 'To be quoted after vendor pricing',
     timingNotes: 'Standard turnaround acceptable',
     technicalNotes: 'Lifecycle test should create Technical Intake row and internal review email.'
+  };
+
+  return MidtsWebhookRouter.handlePost({
+    postData: {
+      type: 'application/json',
+      contents: JSON.stringify(sample)
+    }
+  });
+}
+
+function postSampleWorkspaceRead_(action, source) {
+  var sample = {
+    webhookToken: MidtsConfig.getWebhookToken(),
+    formStage: 'workspaceRead',
+    action: action,
+    source: source || 'Apps Script Workspace Read Test'
+  };
+
+  return MidtsWebhookRouter.handlePost({
+    postData: {
+      type: 'application/json',
+      contents: JSON.stringify(sample)
+    }
+  });
+}
+
+function postSampleQualificationDecision_(decision) {
+  var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
+  var sample = {
+    webhookToken: MidtsConfig.getWebhookToken(),
+    formStage: 'qualificationDecision',
+    action: 'recordQualificationDecision',
+    leadId: leadId,
+    decision: decision,
+    reviewer: 'Apps Script Gateway Test',
+    source: 'Apps Script Qualification Decision Test',
+    pageUrl: 'manual-qualification-decision-test'
   };
 
   return MidtsWebhookRouter.handlePost({
