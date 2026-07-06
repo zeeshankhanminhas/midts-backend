@@ -74,7 +74,7 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | --- | --- |
 | Vendor Safe Package Required | Whether vendor-safe handling is required before external pricing. |
 | Vendor Safe Package Ready | Whether the vendor-safe package was prepared. |
-| Drive Folder Status | Current Drive/vendor-safe folder status. |
+| Drive Folder Status | Current Drive/vendor-safe folder status. Step 2 file upload sets this to `Client Intake Files Uploaded`. |
 | Vendor Pricing Required | Whether external vendor pricing is required. |
 | Vendor Pricing Status | Current vendor pricing state such as `Contact Vendor`, `Vendor Request Sent`, or `Pricing Received`. |
 
@@ -102,11 +102,11 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Lead ID | Parent lead identifier. |
 | Completed At | Timestamp for Step 2 completion. |
 | Service Type / Technical Scope / Materials / Quantity / Deadline | Client technical requirement context. |
-| Files Provided / File Links | File readiness and uploaded/reference links. |
+| Files Provided / File Links | File readiness and uploaded/reference links. Step 2 uploads are stored in the lead Drive folder under `Client Intake Files`; this column stores the resulting Drive URLs. |
 | NDA Required / Confidentiality Notes | Confidentiality context. |
 | Vendor Safe Package Required / Vendor Safe Package Ready | Vendor-safe routing context. |
 | Budget Range / Timing Notes / Technical Notes | Commercial and delivery context. |
-| Raw Payload JSON | Audit copy of submitted Step 2 payload. |
+| Raw Payload JSON | Audit copy of submitted Step 2 payload. Uploaded file bytes are redacted and replaced with Drive metadata. |
 
 ## Technical Reviews
 
@@ -190,7 +190,7 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Submission ID | Frontend submission ID or lead reference if available. |
 | Email | Submitted email if available. |
 | Source | Source route/service label. |
-| Payload JSON | Redacted submitted payload. |
+| Payload JSON | Redacted submitted payload. Step 2 uploaded file content is logged as `[redacted]`. |
 
 ## Email Logs
 
@@ -249,7 +249,7 @@ A lead appears in `/workspace/vendor-request` when:
 A lifecycle pass is not considered complete unless:
 
 1. Step 1 returns `ok: true` and writes `Leads` plus `Webhook Logs`.
-2. Step 2 writes `Technical Intake`, updates `Leads`, and logs/email-notifies internally.
+2. Step 2 writes `Technical Intake`, stores selected uploads as Drive links when files are supplied, updates `Leads`, and logs/email-notifies internally.
 3. Technical Review writes `Technical Reviews`, updates `Leads`, and logs `technical_review_success`.
 4. Qualification Decision updates `Leads`, sends/logs the correct outcome email, and records the decision outcome in `Webhook Logs`.
 5. Vendor Safe Package writes `Vendor Safe Packages`, updates `Leads`, and logs `vendor_safe_package_success`.
