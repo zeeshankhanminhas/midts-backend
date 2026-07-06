@@ -24,6 +24,14 @@ var MidtsWebhookRouter = (function () {
         return handleWorkspaceRead_(payload, requestId);
       }
 
+      if (isVendorSafePackagePayload_(payload)) {
+        return handleVendorSafePackage_(payload, requestId);
+      }
+
+      if (isVendorRequestSetupPayload_(payload)) {
+        return handleVendorRequestSetup_(payload, requestId);
+      }
+
       if (isTechnicalReviewPayload_(payload)) {
         return handleTechnicalReview_(payload, requestId);
       }
@@ -167,26 +175,26 @@ var MidtsWebhookRouter = (function () {
     var action = String(payload.action || '').toLowerCase();
     if (action === 'listpendingtechnicalreviews') {
       var reviewResult = MidtsWorkspaceReadService.listPendingTechnicalReviews();
-      MidtsLogger.logWebhookAttempt({
-        requestId: requestId,
-        outcome: 'workspace_read_success',
-        message: 'Pending technical reviews listed',
-        payload: scrubPayload(payload),
-        source: payload.source || 'WorkspaceRead'
-      });
+      logWorkspaceRead_(requestId, payload, 'Pending technical reviews listed');
       return MidtsResponseService.success(Object.assign({ requestId: requestId }, reviewResult));
     }
 
     if (action === 'listpendingqualificationdecisions') {
       var decisionResult = MidtsWorkspaceReadService.listPendingQualificationDecisions();
-      MidtsLogger.logWebhookAttempt({
-        requestId: requestId,
-        outcome: 'workspace_read_success',
-        message: 'Pending qualification decisions listed',
-        payload: scrubPayload(payload),
-        source: payload.source || 'WorkspaceRead'
-      });
+      logWorkspaceRead_(requestId, payload, 'Pending qualification decisions listed');
       return MidtsResponseService.success(Object.assign({ requestId: requestId }, decisionResult));
+    }
+
+    if (action === 'listpendingvendorsafepackages') {
+      var packageResult = MidtsWorkspaceReadService.listPendingVendorSafePackages();
+      logWorkspaceRead_(requestId, payload, 'Pending vendor-safe packages listed');
+      return MidtsResponseService.success(Object.assign({ requestId: requestId }, packageResult));
+    }
+
+    if (action === 'listpendingvendorrequestsetups') {
+      var requestResult = MidtsWorkspaceReadService.listPendingVendorRequestSetups();
+      logWorkspaceRead_(requestId, payload, 'Pending vendor request setups listed');
+      return MidtsResponseService.success(Object.assign({ requestId: requestId }, requestResult));
     }
 
     MidtsLogger.logWebhookAttempt({
@@ -269,6 +277,82 @@ var MidtsWebhookRouter = (function () {
     });
   }
 
+  function handleVendorSafePackage_(payload, requestId) {
+    var packageResult = MidtsVendorPricingService.markVendorSafePackageReady(payload.leadId || payload.lead_id, payload.reviewer || payload.actor || 'MIDTS Reviewer');
+    if (!packageResult.ok) {
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'vendor_safe_package_failed',
+        message: packageResult.message || packageResult.code || 'Vendor-safe package could not be prepared.',
+        payload: scrubPayload(payload),
+        submissionId: payload.leadId || payload.lead_id || '',
+        source: payload.source || 'WorkspaceVendorSafePackage'
+      });
+      return MidtsResponseService.failure(packageResult.code || 'VENDOR_SAFE_PACKAGE_FAILED', packageResult.message || 'Vendor-safe package could not be prepared.', { requestId: requestId });
+    }
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: 'vendor_safe_package_success',
+      message: 'Vendor-safe package prepared',
+      payload: scrubPayload(payload),
+      submissionId: packageResult.leadId,
+      source: payload.source || 'WorkspaceVendorSafePackage'
+    });
+
+    return MidtsResponseService.success(Object.assign({
+      requestId: requestId,
+      message: 'Vendor-safe package prepared. Lead moved to Vendor Pricing.'
+    }, packageResult));
+  }
+
+  function handleVendorRequestSetup_(payload, requestId) {
+    var requestResult = MidtsVendorRequestService.createAndSendRequest({
+      leadId: payload.leadId || payload.lead_id,
+      vendorName: payload.vendorName || payload.vendor_name,
+      vendorEmail: payload.vendorEmail || payload.vendor_email,
+      packageLink: payload.packageLink || payload.package_link,
+      vendorSafeFilesConfirmed: payload.vendorSafeFilesConfirmed || payload.vendor_safe_files_confirmed
+    });
+
+    if (!requestResult.ok) {
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'vendor_request_setup_failed',
+        message: requestResult.message || 'Vendor request could not be sent.',
+        payload: scrubPayload(payload),
+        submissionId: payload.leadId || payload.lead_id || '',
+        source: payload.source || 'WorkspaceVendorRequestSetup'
+      });
+      return MidtsResponseService.failure('VENDOR_REQUEST_SETUP_FAILED', requestResult.message || 'Vendor request could not be sent.', { requestId: requestId });
+    }
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: 'vendor_request_setup_success',
+      message: 'Vendor pricing request sent from Workspace',
+      payload: scrubPayload(payload),
+      submissionId: requestResult.leadId,
+      email: requestResult.vendorEmail,
+      source: payload.source || 'WorkspaceVendorRequestSetup'
+    });
+
+    return MidtsResponseService.success(Object.assign({
+      requestId: requestId,
+      message: 'Vendor pricing request sent.'
+    }, requestResult));
+  }
+
+  function logWorkspaceRead_(requestId, payload, message) {
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: 'workspace_read_success',
+      message: message,
+      payload: scrubPayload(payload),
+      source: payload.source || 'WorkspaceRead'
+    });
+  }
+
   function parsePostEvent(e) {
     if (!e) return {};
 
@@ -289,7 +373,7 @@ var MidtsWebhookRouter = (function () {
   function isWorkspaceReadPayload_(payload) {
     var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
     var action = String(payload.action || '').toLowerCase();
-    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions';
+    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions' || action === 'listpendingvendorsafepackages' || action === 'listpendingvendorrequestsetups';
   }
 
   function isStep2Payload_(payload) {
@@ -307,6 +391,18 @@ var MidtsWebhookRouter = (function () {
     var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
     var action = String(payload.action || '').toLowerCase();
     return stage === 'qualificationdecision' || stage === 'qualification-decision' || stage === 'qualification_decision' || action === 'recordqualificationdecision' || action === 'record-qualification-decision' || action === 'record_qualification_decision';
+  }
+
+  function isVendorSafePackagePayload_(payload) {
+    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
+    var action = String(payload.action || '').toLowerCase();
+    return stage === 'vendorsafepackage' || stage === 'vendor-safe-package' || stage === 'vendor_safe_package' || action === 'recordvendorsafepackage' || action === 'record-vendor-safe-package' || action === 'record_vendor_safe_package';
+  }
+
+  function isVendorRequestSetupPayload_(payload) {
+    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
+    var action = String(payload.action || '').toLowerCase();
+    return stage === 'vendorrequestsetup' || stage === 'vendor-request-setup' || stage === 'vendor_request_setup' || action === 'setupvendorrequest' || action === 'setup-vendor-request' || action === 'setup_vendor_request';
   }
 
   function looksLikeJson(contents) {

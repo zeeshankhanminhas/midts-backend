@@ -13,6 +13,12 @@ const configuredAllowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredAllowedOrigins]));
+const workspaceReadActions = [
+  'listpendingtechnicalreviews',
+  'listpendingqualificationdecisions',
+  'listpendingvendorsafepackages',
+  'listpendingvendorrequestsetups',
+];
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '10mb' }));
@@ -61,16 +67,41 @@ function firstString(payload, names) {
   return '';
 }
 
+function normalized(value) {
+  return value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
+}
+
+function normalizedCompact(value) {
+  return normalized(value).replace(/-/g, '');
+}
+
 function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
+  const compactStage = normalizedCompact(stage);
+  const compactAction = normalizedCompact(action);
 
-  if (stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions') {
-    if (action !== 'listpendingtechnicalreviews' && action !== 'listpendingqualificationdecisions') return 'Unsupported workspace read action.';
+  if (compactStage === 'workspaceread' || workspaceReadActions.includes(compactAction)) {
+    if (!workspaceReadActions.includes(compactAction)) return 'Unsupported workspace read action.';
     return '';
   }
 
-  if (stage === 'qualificationdecision' || stage === 'qualification-decision' || stage === 'qualification_decision' || action === 'recordqualificationdecision' || action === 'record-qualification-decision' || action === 'record_qualification_decision') {
+  if (compactStage === 'vendorsafepackage' || compactAction === 'recordvendorsafepackage') {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
+    return '';
+  }
+
+  if (compactStage === 'vendorrequestsetup' || compactAction === 'setupvendorrequest') {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['vendorName', 'vendor_name'])) return 'Missing vendor name.';
+    if (!firstString(payload, ['vendorEmail', 'vendor_email'])) return 'Missing vendor email.';
+    if (!firstString(payload, ['packageLink', 'package_link'])) return 'Missing vendor-safe package link.';
+    if (firstString(payload, ['vendorSafeFilesConfirmed', 'vendor_safe_files_confirmed']).toLowerCase() !== 'yes') return 'Vendor-safe files confirmation is required.';
+    return '';
+  }
+
+  if (compactStage === 'qualificationdecision' || compactAction === 'recordqualificationdecision') {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['decision'])) return 'Missing qualification decision.';
     if (!allowedQualificationDecision(firstString(payload, ['decision']))) return 'Unsupported qualification decision.';
@@ -78,7 +109,7 @@ function validatePayload(payload) {
     return '';
   }
 
-  if (stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review') {
+  if (compactStage === 'technicalreview' || compactAction === 'recordtechnicalreview') {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['reviewer'])) return 'Missing reviewer.';
     if (!firstString(payload, ['reviewSummary', 'review_summary'])) return 'Missing review summary.';
@@ -92,7 +123,7 @@ function validatePayload(payload) {
     return '';
   }
 
-  if (stage === 'vendorpricing' || action === 'vendorpricing') {
+  if (compactStage === 'vendorpricing' || compactAction === 'vendorpricing') {
     if (!firstString(payload, ['requestId', 'request_id'])) return 'Missing vendor request reference.';
     if (!firstString(payload, ['token'])) return 'Missing vendor request token.';
     if (!firstString(payload, ['vendorCost', 'vendor_cost'])) return 'Missing vendor cost.';
@@ -119,8 +150,8 @@ function validatePayload(payload) {
 }
 
 function allowedQualificationDecision(value) {
-  const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
-  return ['qualified', 'needs-more-info', 'nurture', 'not-suitable'].includes(normalized);
+  const normalizedValue = normalized(value);
+  return ['qualified', 'needs-more-info', 'nurture', 'not-suitable'].includes(normalizedValue);
 }
 
 async function forwardToAppsScript(payload) {
