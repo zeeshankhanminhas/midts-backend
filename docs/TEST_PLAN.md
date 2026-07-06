@@ -5,13 +5,15 @@
 Completion state:
 
 - `WEBSITE_WEBHOOK_TOKEN` exists in Apps Script Properties.
-- `DECISION_TOKEN` exists in Apps Script Properties.
+- `DECISION_TOKEN` exists in Apps Script Properties for Apps Script fallback links.
 - `WEB_APP_URL` exists in Apps Script Properties and is the current `/exec` URL.
 - `SPREADSHEET_ID` exists in Apps Script Properties or the script is bound to the launch Google Sheet.
 - Optional: `INTAKE_EMAIL` exists in Apps Script Properties if the internal copy should go somewhere other than `intake@midts.com`.
 - Optional: `TEST_EMAIL` exists for Apps Script test emails.
 - Optional: `CAPABILITY_STATEMENT_URL` stores the live Capability Statement route.
 - Optional: `QUOTE_TEMPLATE_URL` stores the live Quote route.
+- Frontend hosting uses `NEXT_PUBLIC_MIDTS_GATEWAY_URL=<cloud-run-gateway-url>/webhook`.
+- Cloud Run gateway has `MIDTS_WEBHOOK_URL` and `MIDTS_WEBHOOK_TOKEN` configured.
 - `setupLaunchSheets()` runs without errors.
 
 ## Test 2: Sheet Structure
@@ -21,9 +23,12 @@ Run `setupLaunchSheets()`.
 Pass condition:
 
 - `Leads` exists.
+- `Technical Intake` exists.
+- `Technical Reviews` exists.
 - `Webhook Logs` exists.
 - `Email Logs` exists.
 - `Leads` includes lifecycle, review, document, quote, nurture, and closure columns.
+- `Technical Reviews` includes the assessment, risk, clarification, recommendation, and internal notes fields used by Workspace.
 
 ## Test 3: Lifecycle Intake Test
 
@@ -35,12 +40,11 @@ Pass condition:
 - Response includes `emailStatus: sent`.
 - Response includes `internalNotificationStatus: sent`.
 - A sample row appears in `Leads`.
-- `Lifecycle Status` is `New Lead`.
+- Step 2 completion moves the lead to `Lifecycle Status = Pending Review`.
 - `Review Status` is `Pending Review`.
-- `Next Action` is `Review lead`.
-- A `success` row appears in `Webhook Logs`.
-- Two `sent` rows appear in `Email Logs`: client acknowledgement and internal review notification.
-- Internal review email includes four decision links.
+- `Next Action` is `Review technical requirement`.
+- A `success` or `step2_success` row appears in `Webhook Logs`.
+- `Email Logs` contains client acknowledgement and internal review notification rows.
 
 ## Test 4: Duplicate Submission Guard
 
@@ -55,80 +59,93 @@ Pass condition:
 - Second attempt does not send another acknowledgement email.
 - Second attempt does not send another internal review notification.
 
-## Test 5: Decision Link And Outcome Email
+## Test 5: Technical Review Workspace Slice
 
-Use a fresh lifecycle test lead for each decision.
-
-Click one internal review decision link.
+Use a lead that has completed Step 2 and has no completed technical review.
 
 Pass condition:
 
-- Browser shows `MIDTS lead decision recorded`.
-- Browser message includes `Outcome email: sent`.
-- The matching lead row updates automatically.
-- `Qualification Decision` matches the clicked decision.
+- `/workspace/technical-review` loads the lead in the pending queue.
+- No seeded/demo records appear when live backend data is returned.
+- Review opens `/workspace/technical-review/review?leadId=<leadId>`.
+- The selected page shows lead, client, company, project type, brief, technical intake, uploaded files, timeline, and lifecycle stage.
+- No editable Lead ID field appears.
+- Submitting Technical assessment, Risks, Clarifications, Internal notes, and Recommendation posts through Cloud Run gateway with `action=recordTechnicalReview` and `formStage=technicalReview`.
+- `Technical Reviews` receives a row.
+- `Leads -> Review Status` becomes `Technical Review Complete`.
+- `Webhook Logs` records `technical_review_success`.
+- The lead disappears from the pending technical review queue after refresh.
+
+## Test 6: Qualification Decision Workspace Slice
+
+Use a lead that has a completed Technical Review and no Qualification Decision / Human Approval.
+
+Pass condition:
+
+- `/workspace/qualification` loads the lead in the pending Qualification queue.
+- Decision opens `/workspace/qualification/review?leadId=<leadId>`.
+- The selected page shows lead context and the latest Technical Review summary, risks, clarifications, internal notes, and recommendation.
+- No editable Lead ID field appears.
+- Selecting one of `Qualified`, `Needs More Information`, `Nurture`, or `Not Suitable` posts through Cloud Run gateway with `action=recordQualificationDecision` and `formStage=qualificationDecision`.
+- Gateway rejects missing `leadId`, missing `decision`, unsupported `decision`, or missing `reviewer` before forwarding.
+- Apps Script uses `DecisionService.applyDecision` for the existing lifecycle update, duplicate/conflict guards, outcome email, and logs.
+- Success appears only after backend success.
+- The lead row updates automatically.
+- `Qualification Decision` matches the selected decision.
 - `Human Approval` is `Approved`.
 - `Review Status` is `Approved`.
 - `Decision Timestamp` is populated.
 - `Next Action` matches the decision route.
-- `Webhook Logs` contains `Decision recorded`.
+- `Webhook Logs` contains `qualification_decision_success` or the existing DecisionService decision log.
 - `Email Logs` contains the correct outcome email row.
+- The lead disappears from the pending Qualification queue after refresh.
 
 Decision-specific pass conditions:
 
 ```text
-Qualified -> Lifecycle Status = Quote Path, Quote Required = Yes, Quote Status = Draft Needed, internal quote prep email sent
-Needs More Info -> Lifecycle Status = Info Required, Info Request Status = Required, client info request email sent
+Qualified -> Lifecycle Status = Vendor Safe Review or Vendor Pricing, Quote Required = Yes, Vendor Pricing Required = Yes, internal workflow email sent if applicable
+Needs More Information -> Lifecycle Status = Info Required, Info Request Status = Required, client info request email sent
 Nurture -> Lifecycle Status = Nurture, Nurture Status = Scheduled, Next Nurture Date populated, client nurture email sent
 Not Suitable -> Lifecycle Status = Closed, Final Outcome = Not Suitable, Closed At populated, client decline email sent
 ```
 
-## Test 6: Duplicate Decision Guard
+## Test 7: Duplicate Decision Guard
 
-Click the same decision link again after it has already succeeded.
+Submit the same Qualification decision again after it has already succeeded.
 
 Pass condition:
 
-- Browser shows `MIDTS decision already recorded`.
+- Workspace shows an already-recorded or non-pending state instead of breaking.
 - Lead row is not rerouted.
 - No second outcome email is sent.
-- `Webhook Logs` contains `outcome = decision_duplicate`.
+- `Webhook Logs` contains `decision_duplicate` or `qualification_decision_duplicate`.
 
-## Test 7: Conflicting Decision Guard
+## Test 8: Conflicting Decision Guard
 
-After one decision has succeeded, click a different decision link for the same lead.
+After one decision has succeeded, submit a different Qualification decision for the same lead.
 
 Pass condition:
 
-- Browser shows `MIDTS decision blocked`.
+- Backend blocks the conflicting decision.
 - Lead row keeps the original decision.
 - Lead row is not rerouted.
 - No second outcome email is sent.
-- `Webhook Logs` contains `outcome = decision_conflict`.
+- `Webhook Logs` contains `decision_conflict` or `qualification_decision_blocked`.
 
-## Test 8: Wrong Token
+## Test 9: Wrong Token
 
-Submit a request to the deployed `/exec` URL using an incorrect token.
+Submit a request to the deployed gateway with an incorrect or missing backend token configuration.
 
 Pass condition:
 
-- Response returns `ok: false`.
-- Code is `TOKEN_INVALID`.
-- No lead row is created.
-- A `rejected` row appears in `Webhook Logs`.
-- No acknowledgement email is sent.
-- No internal review notification is sent.
+- Response returns `ok: false` / `success: false`.
+- No lifecycle row is created or updated.
+- A rejected/failed row appears in `Webhook Logs` when Apps Script receives the request.
+- No acknowledgement, internal, or outcome email is sent.
 
-## Test 9: Frontend Submission
+## Test 10: Frontend Submission
 
-Set frontend hosting variables:
-
-```text
-NEXT_PUBLIC_MIDTS_WEBHOOK_URL=<new-apps-script-exec-url>
-NEXT_PUBLIC_MIDTS_WEBHOOK_TOKEN=<same-value-as-WEBSITE_WEBHOOK_TOKEN>
-```
-
-Submit the public website form.
+Submit the public website form and continue through Step 2, Technical Review, and Qualification.
 
 Pass condition:
 
@@ -137,8 +154,9 @@ Pass condition:
 - Attempt appears in `Webhook Logs`.
 - Client acknowledgement appears in `Email Logs` with status `sent`.
 - Internal review notification appears in `Email Logs` with status `sent`.
-- New lead has visible lifecycle and review status.
-- Clicking an internal review decision link routes the lead without manual sheet editing.
+- Step 2-completed lead appears in `/workspace/technical-review`.
+- Completed Technical Review appears in `/workspace/qualification`.
+- Qualification decision routes the lead without manual sheet editing.
 - The decision route sends/logs the appropriate outcome email.
 
 ## Freeze Rule
@@ -147,9 +165,10 @@ Do not freeze the lifecycle stage unless these are true:
 
 ```text
 One Submission ID -> One Lead
-One Lead -> One Human Decision
+One Lead -> One Technical Review
+One Technical Review -> One Qualification Decision
 One Decision -> One Outcome Email
-Repeated clicks do not resend emails
-Conflicting clicks are blocked
+Repeated decisions do not resend emails
+Conflicting decisions are blocked
 Every guard writes a visible log
 ```
