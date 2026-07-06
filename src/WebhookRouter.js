@@ -167,6 +167,8 @@ var MidtsWebhookRouter = (function () {
       nextAction: step2Result.nextAction,
       internalNotificationStatus: internalNotificationResult.status,
       vendorSafePackageRequired: step2Result.vendorSafePackageRequired,
+      uploadedFileLinks: step2Result.uploadedFileLinks || [],
+      uploadFolderUrl: step2Result.uploadFolderUrl || '',
       message: 'Step 2 completed. Lead is ready for human review.'
     });
   }
@@ -317,56 +319,30 @@ var MidtsWebhookRouter = (function () {
 
     if (!requestResult.ok) {
       MidtsLogger.logWebhookAttempt({
-        requestId: requestId,
-        outcome: 'vendor_request_setup_failed',
-        message: requestResult.message || 'Vendor request could not be sent.',
-        payload: scrubPayload(payload),
-        submissionId: payload.leadId || payload.lead_id || '',
-        source: payload.source || 'WorkspaceVendorRequestSetup'
+        requestId: requestId, outcome: 'vendor_request_setup_failed', message: requestResult.message || 'Vendor request could not be sent.', payload: scrubPayload(payload), submissionId: payload.leadId || payload.lead_id || '', source: payload.source || 'WorkspaceVendorRequestSetup'
       });
       return MidtsResponseService.failure('VENDOR_REQUEST_SETUP_FAILED', requestResult.message || 'Vendor request could not be sent.', { requestId: requestId });
     }
 
     MidtsLogger.logWebhookAttempt({
-      requestId: requestId,
-      outcome: 'vendor_request_setup_success',
-      message: 'Vendor pricing request sent from Workspace',
-      payload: scrubPayload(payload),
-      submissionId: requestResult.leadId,
-      email: requestResult.vendorEmail,
-      source: payload.source || 'WorkspaceVendorRequestSetup'
+      requestId: requestId, outcome: 'vendor_request_setup_success', message: 'Vendor pricing request sent from Workspace', payload: scrubPayload(payload), submissionId: requestResult.leadId, email: requestResult.vendorEmail, source: payload.source || 'WorkspaceVendorRequestSetup'
     });
 
-    return MidtsResponseService.success(Object.assign({
-      requestId: requestId,
-      message: 'Vendor pricing request sent.'
-    }, requestResult));
+    return MidtsResponseService.success(Object.assign({ requestId: requestId, message: 'Vendor pricing request sent.' }, requestResult));
   }
 
   function logWorkspaceRead_(requestId, payload, message) {
-    MidtsLogger.logWebhookAttempt({
-      requestId: requestId,
-      outcome: 'workspace_read_success',
-      message: message,
-      payload: scrubPayload(payload),
-      source: payload.source || 'WorkspaceRead'
-    });
+    MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'workspace_read_success', message: message, payload: scrubPayload(payload), source: payload.source || 'WorkspaceRead' });
   }
 
   function parsePostEvent(e) {
     if (!e) return {};
-
     if (e.postData && e.postData.contents) {
       var contents = e.postData.contents;
       var type = String(e.postData.type || '').toLowerCase();
-
-      if (type.indexOf('application/json') !== -1 || looksLikeJson(contents)) {
-        return JSON.parse(contents);
-      }
-
+      if (type.indexOf('application/json') !== -1 || looksLikeJson(contents)) return JSON.parse(contents);
       return parseUrlEncoded(contents);
     }
-
     return Object.assign({}, e.parameter || {});
   }
 
@@ -427,6 +403,16 @@ var MidtsWebhookRouter = (function () {
     ['webhookToken', 'webhook_token', 'formToken', 'token', 'WEBSITE_WEBHOOK_TOKEN'].forEach(function (key) {
       if (clone[key]) clone[key] = '[redacted]';
     });
+    if (Array.isArray(clone.uploadedFiles)) {
+      clone.uploadedFiles = clone.uploadedFiles.map(function (file) {
+        return {
+          name: file && file.name || '',
+          type: file && file.type || '',
+          sizeBytes: file && file.sizeBytes || '',
+          contentBase64: '[redacted]'
+        };
+      });
+    }
     return clone;
   }
 
