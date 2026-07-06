@@ -1,4 +1,27 @@
 var MidtsWorkspaceReadService = (function () {
+  var VENDOR_REQUEST_HEADERS = [
+    'Request ID',
+    'Lead ID',
+    'Quote Reference',
+    'Created At',
+    'Sent At',
+    'Vendor Name',
+    'Vendor Email',
+    'Vendor Package Link',
+    'Request Token Hash',
+    'Request Status',
+    'Submitted At',
+    'Vendor Cost',
+    'Vendor Currency',
+    'Lead Time',
+    'Quote Valid Until',
+    'Exclusions',
+    'Vendor Reference',
+    'Vendor Notes',
+    'Pricing ID',
+    'Last Updated At'
+  ];
+
   function listPendingTechnicalReviews() {
     var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
     var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
@@ -53,6 +76,68 @@ var MidtsWorkspaceReadService = (function () {
       ok: true,
       count: pending.length,
       decisions: pending
+    };
+  }
+
+  function listPendingVendorSafePackages() {
+    var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
+    var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
+    var reviews = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS, MidtsSheetService.TECHNICAL_REVIEW_HEADERS);
+    var packages = readSheetObjects_(MidtsSheetService.SHEETS.VENDOR_SAFE_PACKAGES, MidtsSheetService.VENDOR_SAFE_PACKAGE_HEADERS);
+    var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
+    var latestReviewsByLead = latestByLeadId_(reviews, 'Created At');
+    var latestPackagesByLead = latestByLeadId_(packages, 'Created At');
+
+    var pending = leads.filter(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      if (!leadId) return false;
+      if (!vendorSafePackagePending_(lead, latestPackagesByLead[leadId])) return false;
+      return latestReviewsByLead[leadId] && clean_(latestReviewsByLead[leadId]['Recommendation']) === 'Qualified';
+    }).map(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      return toVendorSafeRecord_(lead, latestIntakesByLead[leadId], latestReviewsByLead[leadId], latestPackagesByLead[leadId]);
+    });
+
+    pending.sort(function (a, b) {
+      return Number(new Date(b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.reviewedAt || a.submittedAt || a.dateCreated || 0));
+    });
+
+    return {
+      ok: true,
+      count: pending.length,
+      packages: pending
+    };
+  }
+
+  function listPendingVendorRequestSetups() {
+    var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
+    var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
+    var reviews = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS, MidtsSheetService.TECHNICAL_REVIEW_HEADERS);
+    var packages = readSheetObjects_(MidtsSheetService.SHEETS.VENDOR_SAFE_PACKAGES, MidtsSheetService.VENDOR_SAFE_PACKAGE_HEADERS);
+    var requests = readSheetObjects_('Vendor Requests', VENDOR_REQUEST_HEADERS);
+    var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
+    var latestReviewsByLead = latestByLeadId_(reviews, 'Created At');
+    var latestPackagesByLead = latestByLeadId_(packages, 'Created At');
+    var latestRequestsByLead = latestByLeadId_(requests, 'Created At');
+
+    var pending = leads.filter(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      if (!leadId) return false;
+      if (!vendorRequestSetupPending_(lead, latestRequestsByLead[leadId])) return false;
+      return Boolean(clean_(lead['Vendor Pricing Required'])) && equivalent_(lead['Lifecycle Status'], ['vendor pricing']);
+    }).map(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      return toVendorRequestRecord_(lead, latestIntakesByLead[leadId], latestReviewsByLead[leadId], latestPackagesByLead[leadId], latestRequestsByLead[leadId]);
+    });
+
+    pending.sort(function (a, b) {
+      return Number(new Date(b.readyAt || b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.readyAt || a.reviewedAt || a.submittedAt || a.dateCreated || 0));
+    });
+
+    return {
+      ok: true,
+      count: pending.length,
+      requests: pending
     };
   }
 
@@ -159,6 +244,32 @@ var MidtsWorkspaceReadService = (function () {
     return base;
   }
 
+  function toVendorSafeRecord_(lead, intake, review, vendorPackage) {
+    var base = toPendingQualificationRecord_(lead, intake, review || {});
+    base.packageId = vendorPackage ? clean_(vendorPackage['Package ID']) : '';
+    base.packageStatus = vendorPackage ? clean_(vendorPackage['Package Status']) : clean_(lead['Vendor Pricing Status']) || 'Vendor Safe Package Required';
+    base.vendorSafePackageReady = clean_(lead['Vendor Safe Package Ready']);
+    base.driveFolderStatus = clean_(lead['Drive Folder Status']);
+    base.vendorPricingStatus = clean_(lead['Vendor Pricing Status']);
+    base.readyAt = toIso_(vendorPackage && vendorPackage['Created At'] || lead['Decision Timestamp'] || lead['Last Updated At'] || lead['Created At']);
+    base.status = base.packageStatus || base.status;
+    return base;
+  }
+
+  function toVendorRequestRecord_(lead, intake, review, vendorPackage, request) {
+    var base = review ? toPendingQualificationRecord_(lead, intake, review) : toPendingReviewRecord_(lead, intake || {});
+    base.packageId = vendorPackage ? clean_(vendorPackage['Package ID']) : '';
+    base.packageStatus = vendorPackage ? clean_(vendorPackage['Package Status']) : '';
+    base.packageLink = vendorPackage ? clean_(vendorPackage['Drive Folder URL']) : '';
+    base.vendorPricingStatus = clean_(lead['Vendor Pricing Status']);
+    base.vendorSafePackageReady = clean_(lead['Vendor Safe Package Ready']);
+    base.requestId = request ? clean_(request['Request ID']) : '';
+    base.requestStatus = request ? clean_(request['Request Status']) : '';
+    base.readyAt = toIso_(vendorPackage && vendorPackage['Approved At'] || lead['Last Updated At'] || lead['Created At']);
+    base.status = clean_(lead['Vendor Pricing Status']) || clean_(lead['Quote Status']) || 'Contact Vendor';
+    return base;
+  }
+
   function step2Complete_(lead) {
     return equivalent_(lead['Step 2 Status'], ['completed']) || equivalent_(lead['Status'], ['step 2 completed']) || Boolean(lead['Step 2 Completed At']);
   }
@@ -173,6 +284,24 @@ var MidtsWorkspaceReadService = (function () {
 
   function qualificationDecisionComplete_(lead) {
     return clean_(lead['Human Approval']) === 'Approved' || Boolean(clean_(lead['Qualification Decision']));
+  }
+
+  function vendorSafePackagePending_(lead, vendorPackage) {
+    if (!isYes_(lead['Vendor Safe Package Required'])) return false;
+    if (isYes_(lead['Vendor Safe Package Ready'])) return false;
+    if (vendorPackage && clean_(vendorPackage['Package Status']) === 'Approved for Vendor Pricing') return false;
+    return equivalent_(lead['Lifecycle Status'], ['vendor safe review']) || equivalent_(lead['Vendor Pricing Status'], ['vendor safe package required']);
+  }
+
+  function vendorRequestSetupPending_(lead, request) {
+    if (!isYes_(lead['Vendor Pricing Required'])) return false;
+    if (request && ['Pending Send', 'Sent'].indexOf(clean_(request['Request Status'])) !== -1) return false;
+    if (isYes_(lead['Vendor Safe Package Required']) && !isYes_(lead['Vendor Safe Package Ready'])) return false;
+    return equivalent_(lead['Vendor Pricing Status'], ['contact vendor', 'waiting vendor price']) || equivalent_(lead['Next Action'], ['contact vendor']);
+  }
+
+  function isYes_(value) {
+    return clean_(value).toLowerCase() === 'yes';
   }
 
   function equivalent_(value, expected) {
@@ -222,6 +351,8 @@ var MidtsWorkspaceReadService = (function () {
 
   return {
     listPendingTechnicalReviews: listPendingTechnicalReviews,
-    listPendingQualificationDecisions: listPendingQualificationDecisions
+    listPendingQualificationDecisions: listPendingQualificationDecisions,
+    listPendingVendorSafePackages: listPendingVendorSafePackages,
+    listPendingVendorRequestSetups: listPendingVendorRequestSetups
   };
 })();
