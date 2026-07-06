@@ -65,8 +65,16 @@ function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
 
-  if (stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews') {
-    if (action !== 'listpendingtechnicalreviews') return 'Unsupported workspace read action.';
+  if (stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions') {
+    if (action !== 'listpendingtechnicalreviews' && action !== 'listpendingqualificationdecisions') return 'Unsupported workspace read action.';
+    return '';
+  }
+
+  if (stage === 'qualificationdecision' || stage === 'qualification-decision' || stage === 'qualification_decision' || action === 'recordqualificationdecision' || action === 'record-qualification-decision' || action === 'record_qualification_decision') {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['decision'])) return 'Missing qualification decision.';
+    if (!allowedQualificationDecision(firstString(payload, ['decision']))) return 'Unsupported qualification decision.';
+    if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
     return '';
   }
 
@@ -108,6 +116,11 @@ function validatePayload(payload) {
   if (!firstString(payload, ['email', 'work_email', 'emailAddress', 'email_address'])) return 'Missing email.';
   if (!firstString(payload, ['briefRequirement', 'brief_requirement', 'message', 'projectBrief'])) return 'Missing brief requirement.';
   return '';
+}
+
+function allowedQualificationDecision(value) {
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
+  return ['qualified', 'needs-more-info', 'nurture', 'not-suitable'].includes(normalized);
 }
 
 async function forwardToAppsScript(payload) {

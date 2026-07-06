@@ -28,6 +28,10 @@ var MidtsWebhookRouter = (function () {
         return handleTechnicalReview_(payload, requestId);
       }
 
+      if (isQualificationDecisionPayload_(payload)) {
+        return handleQualificationDecision_(payload, requestId);
+      }
+
       if (isStep2Payload_(payload)) {
         return handleStep2_(payload, requestId);
       }
@@ -161,27 +165,38 @@ var MidtsWebhookRouter = (function () {
 
   function handleWorkspaceRead_(payload, requestId) {
     var action = String(payload.action || '').toLowerCase();
-    if (action !== 'listpendingtechnicalreviews') {
+    if (action === 'listpendingtechnicalreviews') {
+      var reviewResult = MidtsWorkspaceReadService.listPendingTechnicalReviews();
       MidtsLogger.logWebhookAttempt({
         requestId: requestId,
-        outcome: 'workspace_read_failed',
-        message: 'UNSUPPORTED_WORKSPACE_READ_ACTION',
+        outcome: 'workspace_read_success',
+        message: 'Pending technical reviews listed',
         payload: scrubPayload(payload),
         source: payload.source || 'WorkspaceRead'
       });
-      return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported.', { requestId: requestId });
+      return MidtsResponseService.success(Object.assign({ requestId: requestId }, reviewResult));
     }
 
-    var readResult = MidtsWorkspaceReadService.listPendingTechnicalReviews();
+    if (action === 'listpendingqualificationdecisions') {
+      var decisionResult = MidtsWorkspaceReadService.listPendingQualificationDecisions();
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: 'workspace_read_success',
+        message: 'Pending qualification decisions listed',
+        payload: scrubPayload(payload),
+        source: payload.source || 'WorkspaceRead'
+      });
+      return MidtsResponseService.success(Object.assign({ requestId: requestId }, decisionResult));
+    }
+
     MidtsLogger.logWebhookAttempt({
       requestId: requestId,
-      outcome: 'workspace_read_success',
-      message: 'Pending technical reviews listed',
+      outcome: 'workspace_read_failed',
+      message: 'UNSUPPORTED_WORKSPACE_READ_ACTION',
       payload: scrubPayload(payload),
       source: payload.source || 'WorkspaceRead'
     });
-
-    return MidtsResponseService.success(Object.assign({ requestId: requestId }, readResult));
+    return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported.', { requestId: requestId });
   }
 
   function handleTechnicalReview_(payload, requestId) {
@@ -219,6 +234,41 @@ var MidtsWebhookRouter = (function () {
     });
   }
 
+  function handleQualificationDecision_(payload, requestId) {
+    var decisionResult = MidtsDecisionService.applyDecision(payload.leadId || payload.lead_id, payload.decision, payload.reviewer || payload.actor || 'MIDTS Reviewer');
+    if (!decisionResult.ok) {
+      MidtsLogger.logWebhookAttempt({
+        requestId: requestId,
+        outcome: decisionResult.blocked ? 'qualification_decision_blocked' : 'qualification_decision_failed',
+        message: decisionResult.message || 'Qualification decision could not be recorded.',
+        payload: scrubPayload(payload),
+        submissionId: payload.leadId || payload.lead_id || '',
+        source: payload.source || 'WorkspaceQualificationDecision'
+      });
+      return MidtsResponseService.failure(decisionResult.blocked ? 'QUALIFICATION_DECISION_BLOCKED' : 'QUALIFICATION_DECISION_FAILED', decisionResult.message || 'Qualification decision could not be recorded.', { requestId: requestId });
+    }
+
+    MidtsLogger.logWebhookAttempt({
+      requestId: requestId,
+      outcome: decisionResult.alreadyProcessed ? 'qualification_decision_duplicate' : 'qualification_decision_success',
+      message: decisionResult.alreadyProcessed ? 'Qualification decision already recorded' : 'Qualification decision recorded: ' + decisionResult.decisionLabel,
+      payload: scrubPayload(payload),
+      submissionId: decisionResult.leadId,
+      source: payload.source || 'WorkspaceQualificationDecision'
+    });
+
+    return MidtsResponseService.success({
+      requestId: requestId,
+      leadId: decisionResult.leadId,
+      decision: decisionResult.decision,
+      decisionLabel: decisionResult.decisionLabel,
+      nextAction: decisionResult.nextAction,
+      outcomeEmailStatus: decisionResult.outcomeEmailStatus,
+      alreadyProcessed: Boolean(decisionResult.alreadyProcessed),
+      message: decisionResult.alreadyProcessed ? decisionResult.message : 'Qualification decision recorded. Outcome routing has been applied.'
+    });
+  }
+
   function parsePostEvent(e) {
     if (!e) return {};
 
@@ -239,7 +289,7 @@ var MidtsWebhookRouter = (function () {
   function isWorkspaceReadPayload_(payload) {
     var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
     var action = String(payload.action || '').toLowerCase();
-    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews';
+    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions';
   }
 
   function isStep2Payload_(payload) {
@@ -251,6 +301,12 @@ var MidtsWebhookRouter = (function () {
     var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
     var action = String(payload.action || '').toLowerCase();
     return stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review';
+  }
+
+  function isQualificationDecisionPayload_(payload) {
+    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
+    var action = String(payload.action || '').toLowerCase();
+    return stage === 'qualificationdecision' || stage === 'qualification-decision' || stage === 'qualification_decision' || action === 'recordqualificationdecision' || action === 'record-qualification-decision' || action === 'record_qualification_decision';
   }
 
   function looksLikeJson(contents) {
