@@ -1,0 +1,19 @@
+# Keep Cloud Run source uploads clean and deterministic
+.git
+.gitignore
+.gcloudignore
+node_modules
+npm-debug.log
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.json.bak
+
+# Never upload local/cloud-shell auth state if someone runs deploy from the wrong place
+.config/
+.google/
+.cache/
+.local/
+.ssh/
