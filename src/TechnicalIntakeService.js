@@ -15,9 +15,11 @@ var MidtsTechnicalIntakeService = (function () {
     var leadId = lead['Lead ID'];
     var now = new Date();
     var technicalIntakeId = createTechnicalIntakeId_(now);
-    var filesProvided = input.filesProvided ? 'Yes' : 'No';
+    var uploadResult = input.uploadedFiles.length ? MidtsDriveService.saveClientIntakeFiles(leadId, input.uploadedFiles) : { fileLinks: [], files: [], folderUrl: '' };
+    var fileLinks = mergeFileLinks_(input.fileLinks, uploadResult.fileLinks);
+    var filesProvided = input.filesProvided || uploadResult.fileLinks.length ? 'Yes' : 'No';
     var ndaRequired = input.ndaRequired ? 'Yes' : 'No';
-    var vendorSafeRequired = input.filesProvided || input.ndaRequired || input.confidentialityNotes ? 'Yes' : 'No';
+    var vendorSafeRequired = filesProvided === 'Yes' || input.ndaRequired || input.confidentialityNotes ? 'Yes' : 'No';
 
     MidtsSheetService.appendTechnicalIntakeRow([
       technicalIntakeId,
@@ -30,7 +32,7 @@ var MidtsTechnicalIntakeService = (function () {
       input.quantity,
       input.deadline,
       filesProvided,
-      input.fileLinks,
+      fileLinks,
       ndaRequired,
       input.confidentialityNotes,
       vendorSafeRequired,
@@ -38,7 +40,7 @@ var MidtsTechnicalIntakeService = (function () {
       input.budgetRange,
       input.timingNotes,
       input.technicalNotes,
-      MidtsLogger.safeJson(payload || {})
+      MidtsLogger.safeJson(rawPayloadForSheet_(payload || {}, uploadResult))
     ]);
 
     var updatedLead = MidtsSheetService.updateLeadById(leadId, {
@@ -53,7 +55,7 @@ var MidtsTechnicalIntakeService = (function () {
       'NDA Required': ndaRequired,
       'Vendor Safe Package Required': vendorSafeRequired,
       'Vendor Safe Package Ready': 'No',
-      'Drive Folder Status': 'Not Automated',
+      'Drive Folder Status': uploadResult.fileLinks.length ? 'Client Intake Files Uploaded' : 'Not Automated',
       'Last Updated At': now
     });
 
@@ -66,7 +68,9 @@ var MidtsTechnicalIntakeService = (function () {
       lifecycleStatus: 'Pending Review',
       reviewStatus: 'Pending Review',
       nextAction: 'Review technical requirement',
-      vendorSafePackageRequired: vendorSafeRequired
+      vendorSafePackageRequired: vendorSafeRequired,
+      uploadedFileLinks: uploadResult.fileLinks,
+      uploadFolderUrl: uploadResult.folderUrl
     };
   }
 
@@ -85,6 +89,7 @@ var MidtsTechnicalIntakeService = (function () {
       deadline: timelineUrgency || firstPresent_(payload, ['deadline', 'required_by', 'timeline']),
       filesProvided: truthy_(firstPresent_(payload, ['filesProvided', 'files_provided', 'has_files', 'file_upload_complete'])),
       fileLinks: firstPresent_(payload, ['fileLinks', 'file_links', 'drive_links', 'uploaded_files']),
+      uploadedFiles: normalizeUploadedFiles_(payload.uploadedFiles || payload.uploaded_files),
       ndaRequired: truthy_(firstPresent_(payload, ['ndaRequired', 'nda_required', 'confidential', 'confidentiality_required'])),
       confidentialityNotes: firstPresent_(payload, ['confidentialityNotes', 'confidentiality_notes', 'nda_notes', 'filesDrawingsReady', 'files_drawings_ready']),
       budgetRange: firstPresent_(payload, ['budgetRange', 'budget_range', 'budget']),
@@ -117,7 +122,47 @@ var MidtsTechnicalIntakeService = (function () {
     };
   }
 
+  function normalizeUploadedFiles_(files) {
+    if (!Array.isArray(files)) return [];
+    return files.map(function (file) {
+      return {
+        name: firstPresent_(file, ['name', 'filename']),
+        type: firstPresent_(file, ['type', 'mimeType', 'mime_type']) || 'application/octet-stream',
+        sizeBytes: Number(file && file.sizeBytes || file && file.size_bytes || 0),
+        contentBase64: firstPresent_(file, ['contentBase64', 'content_base64', 'base64'])
+      };
+    }).filter(function (file) {
+      return file.name && file.contentBase64;
+    });
+  }
+
+  function mergeFileLinks_(existing, uploadedLinks) {
+    var links = [];
+    if (existing) links = links.concat(String(existing).split(/[\n,]+/).map(clean_).filter(Boolean));
+    if (uploadedLinks && uploadedLinks.length) links = links.concat(uploadedLinks.map(clean_).filter(Boolean));
+    return links.join('\n');
+  }
+
+  function rawPayloadForSheet_(payload, uploadResult) {
+    var copy = Object.assign({}, payload);
+    if (Array.isArray(copy.uploadedFiles)) {
+      copy.uploadedFiles = copy.uploadedFiles.map(function (file, index) {
+        var saved = uploadResult.files && uploadResult.files[index];
+        return {
+          name: file && file.name || '',
+          type: file && file.type || '',
+          sizeBytes: file && file.sizeBytes || '',
+          driveFileId: saved && saved.driveFileId || '',
+          driveUrl: saved && saved.driveUrl || '',
+          contentBase64: '[stored in Drive]'
+        };
+      });
+    }
+    return copy;
+  }
+
   function firstPresent_(payload, keys) {
+    payload = payload || {};
     for (var i = 0; i < keys.length; i += 1) {
       var value = payload[keys[i]];
       if (value !== undefined && value !== null && String(value).trim() !== '') {
@@ -125,6 +170,10 @@ var MidtsTechnicalIntakeService = (function () {
       }
     }
     return '';
+  }
+
+  function clean_(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
   function truthy_(value) {
