@@ -4,6 +4,7 @@ const app = express();
 const port = process.env.PORT || 8080;
 const webhookUrl = process.env.MIDTS_WEBHOOK_URL || '';
 const webhookToken = process.env.MIDTS_WEBHOOK_TOKEN || '';
+const uploadPayloadLimit = process.env.MIDTS_UPLOAD_PAYLOAD_LIMIT || '50mb';
 const defaultAllowedOrigins = [
   'https://new-midts.vercel.app',
   'https://zeeshankhanminhas.github.io',
@@ -21,8 +22,8 @@ const workspaceReadActions = [
 ];
 
 app.disable('x-powered-by');
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: uploadPayloadLimit }));
+app.use(express.urlencoded({ extended: true, limit: uploadPayloadLimit }));
 
 function originAllowed(origin) {
   if (!origin) return true;
