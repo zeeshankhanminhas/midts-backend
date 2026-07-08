@@ -16,20 +16,23 @@ var MidtsTechnicalIntakeService = (function () {
     var now = new Date();
     var technicalIntakeId = createTechnicalIntakeId_(now);
     var uploadResult = input.uploadedFiles.length ? MidtsDriveService.saveClientIntakeFiles(leadId, input.uploadedFiles) : { fileLinks: [], files: [], folderUrl: '' };
+    var fileLinks = mergeFileLinks_(input.fileLinks, uploadResult.fileLinks);
+    var hasSavedFileLinks = Boolean(clean_(fileLinks));
 
-    if (input.uploadAttempted && !uploadResult.fileLinks.length) {
+    if ((input.uploadAttempted || input.filesProvided) && !hasSavedFileLinks) {
       return {
         ok: false,
         code: 'CLIENT_FILE_UPLOAD_NOT_SAVED',
-        message: 'Files were selected, but the MIDTS backend did not save any Drive file links. Step 2 has not been moved to Technical Review. Please retry with one small PDF/image first.',
+        message: 'Files were selected, but no Google Drive file links were saved. Step 2 has not been moved to Technical Review. Check the frontend upload payload, Cloud Run body limit, Apps Script Drive permissions, and DRIVE_ROOT_FOLDER_ID.',
         leadId: leadId,
         selectedFileCount: input.selectedFileCount,
-        receivedFileCount: input.uploadedFiles.length
+        receivedFileCount: input.uploadedFiles.length,
+        uploadAttempted: input.uploadAttempted,
+        filesProvided: input.filesProvided
       };
     }
 
-    var fileLinks = mergeFileLinks_(input.fileLinks, uploadResult.fileLinks);
-    var filesProvided = input.filesProvided || uploadResult.fileLinks.length ? 'Yes' : 'No';
+    var filesProvided = hasSavedFileLinks ? 'Yes' : 'No';
     var ndaRequired = input.ndaRequired ? 'Yes' : 'No';
     var vendorSafeRequired = filesProvided === 'Yes' || input.ndaRequired || input.confidentialityNotes ? 'Yes' : 'No';
 
@@ -67,7 +70,7 @@ var MidtsTechnicalIntakeService = (function () {
       'NDA Required': ndaRequired,
       'Vendor Safe Package Required': vendorSafeRequired,
       'Vendor Safe Package Ready': 'No',
-      'Drive Folder Status': uploadResult.fileLinks.length ? 'Client Intake Files Uploaded' : 'Not Automated',
+      'Drive Folder Status': hasSavedFileLinks ? 'Client Intake Files Uploaded' : 'No Client Files Uploaded',
       'Last Updated At': now
     });
 
@@ -92,6 +95,7 @@ var MidtsTechnicalIntakeService = (function () {
     var technicalNotes = firstPresent_(payload, ['technicalNotes', 'technical_notes', 'notes', 'additional_notes']);
     var selectedFileCount = Number(firstPresent_(payload, ['selectedFileCount', 'selected_file_count']) || 0);
     var uploadedFiles = normalizeUploadedFiles_(payload.uploadedFiles || payload.uploaded_files);
+    var fileLinks = firstPresent_(payload, ['fileLinks', 'file_links', 'drive_links']);
 
     return {
       leadId: firstPresent_(payload, ['leadId', 'lead_id', 'midtsLeadId']),
@@ -102,7 +106,7 @@ var MidtsTechnicalIntakeService = (function () {
       quantity: firstPresent_(payload, ['quantity', 'qty', 'volume']),
       deadline: timelineUrgency || firstPresent_(payload, ['deadline', 'required_by', 'timeline']),
       filesProvided: truthy_(firstPresent_(payload, ['filesProvided', 'files_provided', 'has_files', 'file_upload_complete'])),
-      fileLinks: firstPresent_(payload, ['fileLinks', 'file_links', 'drive_links', 'uploaded_files']),
+      fileLinks: fileLinks,
       uploadedFiles: uploadedFiles,
       selectedFileCount: selectedFileCount,
       uploadAttempted: truthy_(firstPresent_(payload, ['uploadAttempted', 'upload_attempted'])) || selectedFileCount > 0 || uploadedFiles.length > 0,
