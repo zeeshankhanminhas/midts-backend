@@ -45,6 +45,8 @@ var MidtsTechnicalReviewService = (function () {
     writeInternalNotes_(internalNotes);
 
     var leadUpdate = MidtsSheetService.updateLeadById(leadId, {
+      'Status': 'Technical Review Complete',
+      'Lifecycle Status': 'Qualification Decision',
       'Review Status': 'Technical Review Complete',
       'Reviewer': reviewer,
       'Review Notes': summary,
