@@ -174,7 +174,7 @@ var MidtsWebhookRouter = (function () {
   }
 
   function handleWorkspaceRead_(payload, requestId) {
-    var action = String(payload.action || '').toLowerCase();
+    var action = normalizeCompact_(payload.action || '');
     if (action === 'listpendingtechnicalreviews') {
       var reviewResult = MidtsWorkspaceReadService.listPendingTechnicalReviews();
       logWorkspaceRead_(requestId, payload, 'Pending technical reviews listed');
@@ -202,11 +202,11 @@ var MidtsWebhookRouter = (function () {
     MidtsLogger.logWebhookAttempt({
       requestId: requestId,
       outcome: 'workspace_read_failed',
-      message: 'UNSUPPORTED_WORKSPACE_READ_ACTION',
+      message: 'UNSUPPORTED_WORKSPACE_READ_ACTION: ' + String(payload.action || ''),
       payload: scrubPayload(payload),
       source: payload.source || 'WorkspaceRead'
     });
-    return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported.', { requestId: requestId });
+    return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported: ' + String(payload.action || ''), { requestId: requestId });
   }
 
   function handleTechnicalReview_(payload, requestId) {
@@ -347,38 +347,46 @@ var MidtsWebhookRouter = (function () {
   }
 
   function isWorkspaceReadPayload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    var action = String(payload.action || '').toLowerCase();
-    return stage === 'workspaceread' || stage === 'workspace-read' || stage === 'workspace_read' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions' || action === 'listpendingvendorsafepackages' || action === 'listpendingvendorrequestsetups';
+    var stage = normalizeCompact_(payload.formStage || payload.form_stage || payload.stage || '');
+    var action = normalizeCompact_(payload.action || '');
+    return stage === 'workspaceread' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions' || action === 'listpendingvendorsafepackages' || action === 'listpendingvendorrequestsetups';
   }
 
   function isStep2Payload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    return stage === 'step2' || stage === 'step_2' || stage === 'technical-intake' || stage === 'technical_intake';
+    var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || '');
+    return stage === 'step2' || stage === 'technicalintake';
   }
 
   function isTechnicalReviewPayload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    var action = String(payload.action || '').toLowerCase();
-    return stage === 'technicalreview' || stage === 'technical-review' || stage === 'technical_review' || action === 'recordtechnicalreview' || action === 'record-technical-review' || action === 'record_technical_review';
+    var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || '');
+    var action = normalizeCompact_(payload.action || '');
+    return stage === 'technicalreview' || action === 'recordtechnicalreview';
   }
 
   function isQualificationDecisionPayload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    var action = String(payload.action || '').toLowerCase();
-    return stage === 'qualificationdecision' || stage === 'qualification-decision' || stage === 'qualification_decision' || action === 'recordqualificationdecision' || action === 'record-qualification-decision' || action === 'record_qualification_decision';
+    var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || '');
+    var action = normalizeCompact_(payload.action || '');
+    return stage === 'qualificationdecision' || action === 'recordqualificationdecision';
   }
 
   function isVendorSafePackagePayload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    var action = String(payload.action || '').toLowerCase();
-    return stage === 'vendorsafepackage' || stage === 'vendor-safe-package' || stage === 'vendor_safe_package' || action === 'recordvendorsafepackage' || action === 'record-vendor-safe-package' || action === 'record_vendor_safe_package';
+    var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || '');
+    var action = normalizeCompact_(payload.action || '');
+    return stage === 'vendorsafepackage' || action === 'recordvendorsafepackage';
   }
 
   function isVendorRequestSetupPayload_(payload) {
-    var stage = String(payload.formStage || payload.form_stage || payload.stage || '').toLowerCase();
-    var action = String(payload.action || '').toLowerCase();
-    return stage === 'vendorrequestsetup' || stage === 'vendor-request-setup' || stage === 'vendor_request_setup' || action === 'setupvendorrequest' || action === 'setup-vendor-request' || action === 'setup_vendor_request';
+    var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || '');
+    var action = normalizeCompact_(payload.action || '');
+    return stage === 'vendorrequestsetup' || action === 'setupvendorrequest';
+  }
+
+  function normalizeStage_(value) {
+    return normalizeCompact_(value);
+  }
+
+  function normalizeCompact_(value) {
+    return String(value || '').trim().toLowerCase().replace(/_/g, '').replace(/-/g, '').replace(/\s+/g, '');
   }
 
   function looksLikeJson(contents) {
