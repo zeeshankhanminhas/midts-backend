@@ -1,7 +1,7 @@
 function doPost(e) {
   var action = e && e.parameter && e.parameter.action;
   if (action === 'vendorRequestSetup') {
-    return MidtsVendorRequestService.handleRequestSetupSubmission(e);
+    return htmlRedirectPage_('Vendor Request Setup moved to Workspace', buildWorkspaceVendorRequestUrl_(e && e.parameter && e.parameter.leadId), 'Vendor Request Setup is now controlled from the MIDTS Workspace.');
   }
   if (action === 'vendorPricing') {
     return MidtsVendorRequestService.handleVendorPricingSubmission(e);
@@ -14,7 +14,7 @@ function doPost(e) {
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.action === 'vendorRequestSetup') {
-    return MidtsVendorRequestService.renderRequestSetup(e);
+    return htmlRedirectPage_('Opening Workspace Vendor Request Setup', buildWorkspaceVendorRequestUrl_(e.parameter.leadId), 'Vendor Request Setup is now controlled from the MIDTS Workspace.');
   }
   if (e && e.parameter && e.parameter.action === 'vendorPricing') {
     return MidtsVendorRequestService.renderVendorPricingForm(e);
@@ -36,6 +36,38 @@ function doGet(e) {
     status: 'ready',
     message: 'Use POST requests for website enquiry submissions.'
   });
+}
+
+function buildWorkspaceVendorRequestUrl_(leadId) {
+  var baseUrl = MidtsConfig.getScriptProperty('WORKSPACE_BASE_URL') || 'https://new-midts.vercel.app';
+  var cleanBase = String(baseUrl || '').replace(/\/+$/, '');
+  var cleanLeadId = String(leadId || '').trim();
+  return cleanBase + '/workspace/vendor-request/review' + (cleanLeadId ? '?leadId=' + encodeURIComponent(cleanLeadId) : '');
+}
+
+function htmlRedirectPage_(title, url, message) {
+  var safeTitle = escapeHtmlForCode_(title || 'Opening MIDTS Workspace');
+  var safeUrl = escapeHtmlForCode_(url || 'https://new-midts.vercel.app/workspace/vendor-request');
+  var safeMessage = escapeHtmlForCode_(message || 'Continue in MIDTS Workspace.');
+  return HtmlService.createHtmlOutput([
+    '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<meta http-equiv="refresh" content="0;url=' + safeUrl + '">',
+    '<title>' + safeTitle + '</title></head>',
+    '<body style="font-family:Arial,sans-serif;color:#111;line-height:1.5;padding:32px;max-width:760px;margin:0 auto">',
+    '<h1 style="font-size:24px;margin:0 0 16px">' + safeTitle + '</h1>',
+    '<p>' + safeMessage + '</p>',
+    '<p><a href="' + safeUrl + '">Open MIDTS Workspace</a></p>',
+    '</body></html>'
+  ].join(''));
+}
+
+function escapeHtmlForCode_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function setupLaunchSheets() {
@@ -299,7 +331,7 @@ function testVendorPricingRequestSetupEmail() {
 
 function testVendorPricingRequestSetupUrl() {
   var leadId = MidtsConfig.getRequiredScriptProperty('TEST_LEAD_ID');
-  return MidtsVendorRequestService.buildRequestSetupUrl(leadId);
+  return buildWorkspaceVendorRequestUrl_(leadId);
 }
 
 function testRefreshPipeline() {
