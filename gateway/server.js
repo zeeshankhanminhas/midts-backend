@@ -14,12 +14,24 @@ const configuredAllowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .map((origin) => origin.trim())
   .filter(Boolean);
 const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredAllowedOrigins]));
-const workspaceReadActions = [
-  'listpendingtechnicalreviews',
-  'listpendingqualificationdecisions',
-  'listpendingvendorsafepackages',
-  'listpendingvendorrequestsetups',
-];
+const workspaceReadActionAliases = {
+  listpendingtechnicalreviews: 'listPendingTechnicalReviews',
+  pendingtechnicalreviews: 'listPendingTechnicalReviews',
+  listtechnicalreviews: 'listPendingTechnicalReviews',
+  listpendingqualificationdecisions: 'listPendingQualificationDecisions',
+  listpendingqualificationdecision: 'listPendingQualificationDecisions',
+  pendingqualificationdecisions: 'listPendingQualificationDecisions',
+  pendingqualificationdecision: 'listPendingQualificationDecisions',
+  listqualificationdecisions: 'listPendingQualificationDecisions',
+  listqualificationdecision: 'listPendingQualificationDecisions',
+  listpendingvendorsafepackages: 'listPendingVendorSafePackages',
+  listpendingvendorsafepackage: 'listPendingVendorSafePackages',
+  pendingvendorsafepackages: 'listPendingVendorSafePackages',
+  listpendingvendorrequestsetups: 'listPendingVendorRequestSetups',
+  listpendingvendorrequestsetup: 'listPendingVendorRequestSetups',
+  pendingvendorrequestsetups: 'listPendingVendorRequestSetups',
+};
+const workspaceReadActions = Object.keys(workspaceReadActionAliases);
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: uploadPayloadLimit }));
@@ -69,11 +81,15 @@ function firstString(payload, names) {
 }
 
 function normalized(value) {
-  return value.trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
+  return String(value || '').trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
 }
 
 function normalizedCompact(value) {
   return normalized(value).replace(/-/g, '');
+}
+
+function canonicalWorkspaceReadAction(value) {
+  return workspaceReadActionAliases[normalizedCompact(value)] || '';
 }
 
 function validatePayload(payload) {
@@ -83,7 +99,9 @@ function validatePayload(payload) {
   const compactAction = normalizedCompact(action);
 
   if (compactStage === 'workspaceread' || workspaceReadActions.includes(compactAction)) {
-    if (!workspaceReadActions.includes(compactAction)) return 'Unsupported workspace read action.';
+    const canonicalAction = canonicalWorkspaceReadAction(action);
+    if (!canonicalAction) return `Unsupported workspace read action: ${action || '[missing]'}.`;
+    payload.action = canonicalAction;
     return '';
   }
 
