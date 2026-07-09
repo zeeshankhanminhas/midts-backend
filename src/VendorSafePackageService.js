@@ -12,26 +12,52 @@ var MidtsVendorSafePackageService = (function () {
       return { ok:false, code:'TECHNICAL_REVIEW_REQUIRED', message:'A Qualified Technical Review is required.' };
     }
 
-    var previous = MidtsSheetService.findLatestVendorSafePackageByLeadId(leadId);
-    if (previous && String(previous.vendorSafePackage['Package Status'] || '') === 'Approved for Vendor Pricing') {
-      return { ok:true, alreadyPrepared:true, packageId:previous.vendorSafePackage['Package ID'], driveFolderUrl:previous.vendorSafePackage['Drive Folder URL'] };
+    var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
+    if (!intakeResult) return { ok:false, code:'TECHNICAL_INTAKE_REQUIRED', message:'Latest Technical Intake is required before a vendor-safe package can be generated.' };
+    var intake = intakeResult.intake || {};
+    var sourceFileLinks = validDriveLinks_(splitList_(intake['File Links']));
+    if (String(intake['Files Provided'] || '').trim().toLowerCase() === 'yes' && !sourceFileLinks.length) {
+      return { ok:false, code:'VSP_SOURCE_FILES_MISSING', message:'Step 2 says files were provided, but no valid Drive file links were found in Technical Intake. Regenerate Step 2 file links before creating the vendor-safe package.' };
     }
 
-    var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
-    var intake = intakeResult ? intakeResult.intake : {};
+    var previous = MidtsSheetService.findLatestVendorSafePackageByLeadId(leadId);
+    if (previous && String(previous.vendorSafePackage['Package Status'] || '') === 'Approved for Vendor Pricing') {
+      var previousManifest = parseJson_(previous.vendorSafePackage['Package JSON']);
+      if (packageManifestLooksComplete_(previousManifest, sourceFileLinks.length)) {
+        return {
+          ok:true,
+          alreadyPrepared:true,
+          packageId:previous.vendorSafePackage['Package ID'],
+          driveFolderUrl:previous.vendorSafePackage['Drive Folder URL'],
+          package:previousManifest,
+          generatedDocuments:previousManifest.generatedDocuments || [],
+          copiedClientFiles:previousManifest.clientFiles || []
+        };
+      }
+    }
+
     var now = new Date();
     var packageId = 'VSP-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random()*9000+1000);
     var packageFolder = MidtsDriveService.getVendorSafePackageFolder(leadId, packageId);
     var clientFilesFolder = getOrCreateSubfolder_(packageFolder, '06 Client Files');
     var midtsFilesFolder = getOrCreateSubfolder_(packageFolder, '07 MIDTS Files');
-    var fileLinks = splitList_(intake['File Links']);
-    var copiedClientFiles = MidtsDriveService.copyFilesByUrl(fileLinks, clientFilesFolder);
-    var packageData = buildPackageData_(packageId, now, leadResult.lead, intake, review.review, copiedClientFiles, packageFolder.getUrl());
-    var generatedDocs = generatePackageDocs_(packageFolder, packageData);
+
+    var copiedClientFiles = MidtsDriveService.copyFilesByUrl(sourceFileLinks, clientFilesFolder);
+    var successfulClientFiles = copiedClientFiles.filter(function (file) { return file && file.id && !file.error; });
+    if (sourceFileLinks.length && successfulClientFiles.length !== sourceFileLinks.length) {
+      return { ok:false, code:'VSP_CLIENT_FILE_COPY_FAILED', message:'One or more Step 2 files could not be copied into the vendor-safe package. Check Drive permissions and source file links before sending to vendors.', copiedClientFiles:copiedClientFiles };
+    }
+
+    var packageData = buildPackageData_(packageId, now, leadResult.lead, intake, review.review, successfulClientFiles, packageFolder.getUrl(), sourceFileLinks);
+    var generatedDocs = generatePackageDocs_(packageFolder, packageData, leadResult.lead, intake, review.review);
+    if (generatedDocs.length < 7) {
+      return { ok:false, code:'VSP_DOCUMENT_GENERATION_INCOMPLETE', message:'Vendor-safe package documents were not fully generated. Do not send this package to vendors.', generatedDocuments:generatedDocs };
+    }
 
     var manifest = Object.assign({}, packageData, {
       generatedDocuments: generatedDocs,
-      clientFiles: copiedClientFiles,
+      clientFiles: successfulClientFiles,
+      clientFilesFolderUrl: clientFilesFolder.getUrl(),
       midtsFilesFolderUrl: midtsFilesFolder.getUrl()
     });
     var manifestJson = JSON.stringify(manifest);
@@ -56,13 +82,13 @@ var MidtsVendorSafePackageService = (function () {
       driveFolderUrl:packageFolder.getUrl(),
       package:manifest,
       generatedDocuments:generatedDocs,
-      copiedClientFiles:copiedClientFiles
+      copiedClientFiles:successfulClientFiles
     };
   }
 
-  function buildPackageData_(packageId, now, lead, intake, review, copiedClientFiles, folderUrl) {
+  function buildPackageData_(packageId, now, lead, intake, review, copiedClientFiles, folderUrl, sourceFileLinks) {
     return {
-      schemaVersion:'2.0',
+      schemaVersion:'2.1',
       packageType:'vendor-safe-procurement-package',
       packageId:packageId,
       packageRevision:'1',
@@ -74,6 +100,7 @@ var MidtsVendorSafePackageService = (function () {
       quoteReference:String(lead['Quote Reference'] || ''),
       projectType:String(lead['Project Type'] || intake['Service Type'] || ''),
       scopeOfWork:String(intake['Technical Scope'] || lead['Brief Requirement'] || ''),
+      sourceFileLinks:sourceFileLinks || [],
       clientRequirements:{
         briefRequirement:String(lead['Brief Requirement'] || ''),
         materials:String(intake['Materials'] || ''),
@@ -109,10 +136,14 @@ var MidtsVendorSafePackageService = (function () {
     };
   }
 
-  function generatePackageDocs_(folder, data) {
+  function generatePackageDocs_(folder, data, lead, intake, review) {
     var docs = [];
-    docs.push(MidtsDriveService.createGoogleDocInFolder(folder, '01 Cover Sheet - ' + data.packageId, [
-      { heading:'Package', lines:[
+    var requirementSheet = MidtsDocumentAdapterService.toRequirementSheetData(lead, intake, { reference:data.packageId + '-REQ', revision:data.packageRevision, status:'issued' });
+    var technicalReview = MidtsDocumentAdapterService.toTechnicalReviewData(lead, intake, review, { reference:data.packageId + '-TR', revision:data.packageRevision, status:'issued' });
+
+    docs.push(createDoc_(folder, '01 Cover Sheet - ' + data.packageId, [
+      { heading:'Document Control', lines:[
+        'Document: Vendor Safe Package Cover Sheet',
         'Package ID: ' + data.packageId,
         'Lead ID: ' + data.leadId,
         'Revision: ' + data.packageRevision,
@@ -121,38 +152,50 @@ var MidtsVendorSafePackageService = (function () {
         'Project type: ' + data.projectType,
         'Vendor package folder: ' + data.folderUrl
       ]},
+      { heading:'Package Contents', lines:[
+        '02 Scope of Work',
+        '03 Client Requirements',
+        '04 Technical Review',
+        '05 Vendor Instructions',
+        '06 RFQ Response Template',
+        '07 Document Register',
+        '06 Client Files folder',
+        '07 MIDTS Files folder'
+      ]},
       { heading:'Confidentiality', lines:data.exclusions }
     ]));
 
-    docs.push(MidtsDriveService.createGoogleDocInFolder(folder, '02 Scope of Work - ' + data.packageId, [
+    docs.push(createDoc_(folder, '02 Scope of Work - ' + data.packageId, [
       { heading:'Scope of Work', lines:[data.scopeOfWork || 'Scope not recorded.'] },
-      { heading:'Project Type', lines:[data.projectType || 'Not recorded'] }
+      { heading:'Manufacturing Objective', lines:['Vendor to review the supplied requirement and files and provide a commercial quotation based on stated assumptions.'] },
+      { heading:'Deliverables Requested', lines:['Vendor pricing response', 'Lead time', 'Assumptions and exclusions', 'Questions or missing information'] },
+      { heading:'Commercial Assumptions', lines:['Pricing must include what is included and excluded. Do not assume MIDTS or client approval of production without written confirmation.'] }
     ]));
 
-    docs.push(MidtsDriveService.createGoogleDocInFolder(folder, '03 Client Requirements - ' + data.packageId, [
-      { heading:'Client Requirement', lines:[data.clientRequirements.briefRequirement || 'Not recorded'] },
-      { heading:'Materials', lines:[data.clientRequirements.materials || 'Not recorded'] },
-      { heading:'Quantity', lines:[data.clientRequirements.quantity || 'Not recorded'] },
-      { heading:'Deadline / Timing', lines:[data.clientRequirements.deadline || 'Not recorded', data.clientRequirements.timingNotes || ''] },
-      { heading:'Budget / Commercial Context', lines:[data.clientRequirements.budgetRange || 'Not recorded'] },
-      { heading:'Files Provided', lines:[data.clientRequirements.filesProvided || 'Not recorded'] },
-      { heading:'Confidentiality Notes', lines:[data.clientRequirements.confidentialityNotes || 'None recorded'] }
+    docs.push(createDoc_(folder, '03 Client Requirements - ' + data.packageId, [
+      { heading:'Document Data Source', lines:['Generated from MIDTS Document Adapter: requirementSheet', 'Reference: ' + requirementSheet.reference, 'Revision: ' + requirementSheet.revision, 'Status: ' + requirementSheet.status] },
+      { heading:'Requirement Summary', lines:[requirementSheet.requirementSummary || 'Not recorded'] },
+      { heading:'Intake Fields', lines:(requirementSheet.intakeFields || []).map(function (row) { return row.label + ': ' + row.value; }) },
+      { heading:'Technical Inputs', lines:requirementSheet.technicalInputs || ['Not recorded'] },
+      { heading:'Constraints', lines:requirementSheet.constraints || ['Not recorded'] },
+      { heading:'Open Questions', lines:requirementSheet.openQuestions && requirementSheet.openQuestions.length ? requirementSheet.openQuestions : ['None recorded'] }
     ]));
 
-    docs.push(MidtsDriveService.createGoogleDocInFolder(folder, '04 Technical Review - ' + data.packageId, [
-      { heading:'Technical Review ID', lines:[data.technicalReview.technicalReviewId || 'Not recorded'] },
-      { heading:'Summary', lines:[data.technicalReview.summary || 'Not recorded'] },
-      { heading:'File Review', lines:[data.technicalReview.fileReview || 'Not recorded'] },
-      { heading:'Risks', lines:[data.technicalReview.risks || 'None recorded'] },
-      { heading:'Clarifications', lines:[data.technicalReview.clarifications || 'None recorded'] },
-      { heading:'Recommendation', lines:[data.technicalReview.recommendation || 'Not recorded'] }
+    docs.push(createDoc_(folder, '04 Technical Review - ' + data.packageId, [
+      { heading:'Document Data Source', lines:['Generated from MIDTS Document Adapter: technicalReview', 'Reference: ' + technicalReview.reference, 'Revision: ' + technicalReview.revision, 'Status: ' + technicalReview.status] },
+      { heading:'Review Summary', lines:[technicalReview.reviewSummary || 'Not recorded'] },
+      { heading:'File Review', lines:(technicalReview.fileReview || []).map(function (row) { return row.area + ': ' + row.finding + ' [' + row.status + ']'; }) },
+      { heading:'Risks', lines:technicalReview.risks && technicalReview.risks.length ? technicalReview.risks : ['None recorded'] },
+      { heading:'Clarifications', lines:technicalReview.clarifications && technicalReview.clarifications.length ? technicalReview.clarifications : ['None recorded'] },
+      { heading:'Recommendation', lines:[technicalReview.recommendation || 'Not recorded'] }
     ]));
 
-    docs.push(MidtsDriveService.createGoogleDocInFolder(folder, '05 Vendor Instructions - ' + data.packageId, [
+    docs.push(createDoc_(folder, '05 Vendor Instructions - ' + data.packageId, [
       { heading:'Instructions', lines:data.vendorInstructions },
-      { heading:'Required quote response', lines:[
+      { heading:'Required Quote Response', lines:[
         'Unit price or total price.',
         'Tooling/NRE cost if applicable.',
+        'Minimum order quantity if applicable.',
         'Lead time.',
         'Quote validity period.',
         'Material and process assumptions.',
@@ -161,7 +204,59 @@ var MidtsVendorSafePackageService = (function () {
         'Questions or missing information.'
       ]}
     ]));
+
+    docs.push(createDoc_(folder, '06 RFQ Response Template - ' + data.packageId, [
+      { heading:'Vendor Response Fields', lines:[
+        'Vendor name:',
+        'Vendor quote reference:',
+        'Total quoted cost:',
+        'Currency:',
+        'Unit price:',
+        'Tooling/NRE:',
+        'MOQ:',
+        'Lead time:',
+        'Quote valid until:',
+        'Material assumptions:',
+        'Manufacturing process:',
+        'Inspection/certification included:',
+        'Shipping/packaging included:',
+        'Exclusions:',
+        'Questions for MIDTS:'
+      ]}
+    ]));
+
+    var registerLines = [
+      '01 Cover Sheet - Generated by MIDTS',
+      '02 Scope of Work - Generated by MIDTS',
+      '03 Client Requirements - Generated from Step 1 and Step 2',
+      '04 Technical Review - Generated from MIDTS review record',
+      '05 Vendor Instructions - MIDTS standard instructions',
+      '06 RFQ Response Template - Vendor response structure'
+    ].concat((data.copiedClientFiles || []).map(function (file, index) {
+      return 'Client File ' + (index + 1) + ': ' + file.name + ' - ' + file.url;
+    }));
+
+    docs.push(createDoc_(folder, '07 Document Register - ' + data.packageId, [
+      { heading:'Register', lines:registerLines },
+      { heading:'Source File Links', lines:data.sourceFileLinks && data.sourceFileLinks.length ? data.sourceFileLinks : ['No source file links recorded'] }
+    ]));
+
     return docs;
+  }
+
+  function createDoc_(folder, title, sections) {
+    return MidtsDriveService.createGoogleDocInFolder(folder, title, sections);
+  }
+
+  function packageManifestLooksComplete_(manifest, expectedClientFileCount) {
+    if (!manifest) return false;
+    if (!Array.isArray(manifest.generatedDocuments) || manifest.generatedDocuments.length < 7) return false;
+    if (expectedClientFileCount && (!Array.isArray(manifest.clientFiles) || manifest.clientFiles.length < expectedClientFileCount)) return false;
+    return true;
+  }
+
+  function validDriveLinks_(links) {
+    return (links || []).filter(function (link) { return /^https:\/\/drive\.google\.com\//i.test(String(link || '')); });
   }
 
   function getOrCreateSubfolder_(folder, name) {
@@ -171,6 +266,11 @@ var MidtsVendorSafePackageService = (function () {
 
   function splitList_(value) {
     return String(value || '').split(/[\n,]+/).map(function (item) { return String(item || '').trim(); }).filter(Boolean);
+  }
+
+  function parseJson_(value) {
+    try { return JSON.parse(String(value || '').trim() || '{}') || {}; }
+    catch (error) { return {}; }
   }
 
   function hash_(value) {
