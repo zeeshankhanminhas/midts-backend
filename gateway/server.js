@@ -30,6 +30,14 @@ const workspaceReadActionAliases = {
   listpendingvendorrequestsetups: 'listPendingVendorRequestSetups',
   listpendingvendorrequestsetup: 'listPendingVendorRequestSetups',
   pendingvendorrequestsetups: 'listPendingVendorRequestSetups',
+  listpendingmarginreviews: 'listPendingMarginReviews',
+  listpendingmarginreview: 'listPendingMarginReviews',
+  pendingmarginreviews: 'listPendingMarginReviews',
+  pendingmarginreview: 'listPendingMarginReviews',
+  listpendingquotebuilders: 'listPendingQuoteBuilders',
+  listpendingquotebuilder: 'listPendingQuoteBuilders',
+  listpendingquotebuilderrecords: 'listPendingQuoteBuilders',
+  pendingquotebuilders: 'listPendingQuoteBuilders',
 };
 const workspaceReadActions = Object.keys(workspaceReadActionAliases);
 
@@ -92,6 +100,10 @@ function canonicalWorkspaceReadAction(value) {
   return workspaceReadActionAliases[normalizedCompact(value)] || '';
 }
 
+function allowedMarginAction(value) {
+  return ['approvemargin', 'rejectmargin', 'returnmargintovendor'].includes(normalizedCompact(value));
+}
+
 function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
@@ -102,6 +114,13 @@ function validatePayload(payload) {
     const canonicalAction = canonicalWorkspaceReadAction(action);
     if (!canonicalAction) return `Unsupported workspace read action: ${action || '[missing]'}.`;
     payload.action = canonicalAction;
+    return '';
+  }
+
+  if (compactStage === 'marginreview' || allowedMarginAction(action)) {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
+    if (action && !allowedMarginAction(action)) return 'Unsupported margin review action.';
     return '';
   }
 
@@ -258,8 +277,7 @@ async function handleWebhook(request, response) {
 }
 
 app.post('/webhook', handleWebhook);
-app.post('/lead', handleWebhook);
 
 app.listen(port, () => {
-  console.log(`MIDTS form gateway listening on port ${port}`);
+  console.log(`MIDTS gateway listening on ${port}`);
 });
