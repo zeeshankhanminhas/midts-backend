@@ -7,28 +7,11 @@ var MidtsDecisionService = (function () {
   };
 
   function handleDecisionRequest(e) {
-    try {
-      var params = e && e.parameter || {};
-      var validation = validateDecisionParams_(params);
-      if (!validation.ok) {
-        return htmlResponse_('MIDTS decision failed', validation.message);
-      }
-
-      var result = applyDecision(params.leadId, params.decision, params.reviewer || 'Email Approval');
-      if (result.alreadyProcessed) {
-        return htmlResponse_('MIDTS decision already recorded', 'Lead ' + result.leadId + ' is already routed as ' + result.decisionLabel + '. No further action was taken.');
-      }
-      if (result.blocked) {
-        return htmlResponse_('MIDTS decision blocked', result.message);
-      }
-
-      return htmlResponse_(
-        'MIDTS lead decision recorded',
-        'Lead ' + result.leadId + ' has been routed as ' + result.decisionLabel + '. Next action: ' + result.nextAction + '. Outcome email: ' + result.outcomeEmailStatus + '.'
-      );
-    } catch (error) {
-      return htmlResponse_('MIDTS decision failed', String(error && error.message ? error.message : error));
-    }
+    var params = e && e.parameter || {};
+    return htmlResponse_(
+      'Qualification Decision moved to Workspace',
+      'Legacy Apps Script decision links are disabled. Open MIDTS Workspace and record the qualification decision from the Qualification Decisions queue for lead ' + String(params.leadId || '') + '.'
+    );
   }
 
   function applyDecision(leadId, decisionKey, reviewer) {
@@ -52,28 +35,25 @@ var MidtsDecisionService = (function () {
     var now = new Date();
     var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now, existing.lead);
     var updatedLead = MidtsSheetService.updateLeadById(leadId, updates);
-    var outcomeEmailResult = MidtsEmailService.sendDecisionOutcomeEmail({
-      leadId: leadId,
-      decision: normalizedDecision,
-      decisionLabel: decisionLabel,
-      nextAction: updates['Next Action'],
-      updates: updates,
-      lead: updatedLead.lead
-    });
+    var outcomeEmailResult = {
+      ok: true,
+      status: 'workspace_controlled_skipped',
+      message: 'Legacy Apps Script outcome emails are disabled. Workspace controls follow-up actions.'
+    };
 
     MidtsLogger.logWebhookAttempt({
       requestId: 'DECISION-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
       outcome: 'decision',
-      message: 'Decision recorded: ' + decisionLabel + '; outcome email: ' + outcomeEmailResult.status,
+      message: 'Decision recorded from Workspace: ' + decisionLabel + '; legacy outcome email skipped',
       payload: {
         leadId: leadId,
         decision: decisionLabel,
-        reviewer: reviewer || 'Email Approval',
+        reviewer: reviewer || 'Workspace Approval',
         outcomeEmailStatus: outcomeEmailResult.status
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
       email: updatedLead.lead['Email'] || '',
-      source: 'Decision Link'
+      source: 'Workspace Qualification Decision'
     });
 
     return {
@@ -145,11 +125,11 @@ var MidtsDecisionService = (function () {
         leadId: leadId,
         existingDecision: existingDecisionLabel,
         requestedDecision: requestedDecisionLabel,
-        reviewer: reviewer || 'Email Approval'
+        reviewer: reviewer || 'Workspace Approval'
       },
       submissionId: lead['Submission ID'] || '',
       email: lead['Email'] || '',
-      source: 'Decision Link'
+      source: 'Workspace Qualification Decision'
     });
 
     if (sameDecision) {
@@ -178,30 +158,11 @@ var MidtsDecisionService = (function () {
     };
   }
 
-  function validateDecisionParams_(params) {
-    if (!params.leadId) {
-      return { ok: false, message: 'Missing leadId.' };
-    }
-    if (!params.decision) {
-      return { ok: false, message: 'Missing decision.' };
-    }
-    if (!params.token) {
-      return { ok: false, message: 'Missing decision token.' };
-    }
-    if (String(params.token) !== MidtsConfig.getDecisionToken()) {
-      return { ok: false, message: 'Invalid decision token.' };
-    }
-    if (!DECISIONS[normalizeDecision_(params.decision)]) {
-      return { ok: false, message: 'Unsupported decision: ' + params.decision };
-    }
-    return { ok: true };
-  }
-
   function buildDecisionUpdates_(decisionKey, decisionLabel, reviewer, now, lead) {
     var base = {
       'Qualification Decision': decisionLabel,
       'Human Approval': 'Approved',
-      'Reviewer': reviewer || 'Email Approval',
+      'Reviewer': reviewer || 'Workspace Approval',
       'Decision Timestamp': now,
       'Review Status': 'Approved',
       'Last Updated At': now
@@ -303,14 +264,8 @@ var MidtsDecisionService = (function () {
   }
 
   function buildDecisionUrl(leadId, decisionKey) {
-    var baseUrl = MidtsConfig.getWebAppUrl();
-    var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
-    return baseUrl + separator + [
-      'action=decision',
-      'leadId=' + encodeURIComponent(leadId),
-      'decision=' + encodeURIComponent(decisionKey),
-      'token=' + encodeURIComponent(MidtsConfig.getDecisionToken())
-    ].join('&');
+    var baseUrl = MidtsConfig.getScriptProperty('WORKSPACE_BASE_URL') || 'https://new-midts.vercel.app';
+    return String(baseUrl || '').replace(/\/+$/, '') + '/workspace/qualification/review?leadId=' + encodeURIComponent(leadId || '') + '&decision=' + encodeURIComponent(decisionKey || '');
   }
 
   function normalizeDecision_(decision) {
