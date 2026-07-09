@@ -101,7 +101,7 @@ function canonicalWorkspaceReadAction(value) {
 }
 
 function allowedMarginAction(value) {
-  return ['approvemargin', 'rejectmargin', 'returnmargintovendor'].includes(normalizedCompact(value));
+  return ['approvemargin', 'updatemarginreview', 'rejectmargin', 'returnmargintovendor'].includes(normalizedCompact(value));
 }
 
 function validatePayload(payload) {
@@ -121,6 +121,7 @@ function validatePayload(payload) {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
     if (action && !allowedMarginAction(action)) return 'Unsupported margin review action.';
+    if (compactAction === 'updatemarginreview' && !firstString(payload, ['marginValue', 'margin_value'])) return 'Missing margin value.';
     return '';
   }
 
