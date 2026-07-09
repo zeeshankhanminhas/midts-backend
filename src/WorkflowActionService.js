@@ -8,111 +8,38 @@ var MidtsWorkflowActionService = (function () {
   };
 
   function handleActionRequest(e) {
-    try {
-      var params = e && e.parameter || {};
-      var validation = validateActionParams_(params);
-      if (!validation.ok) {
-        return htmlResponse_('MIDTS action failed', validation.message);
-      }
-
-      var result = applyAction(params.leadId, params.action, params.reviewer || 'Email Approval');
-      if (!result.ok) {
-        return htmlResponse_('MIDTS action blocked', result.message || result.code || 'The action could not be completed.');
-      }
-
-      var emailResult = sendNextActionEmailIfUseful_(params.leadId);
-      var emailMessage = emailResult && emailResult.ok ? ' Next workflow email sent.' : '';
-
-      return htmlResponse_(
-        'MIDTS action completed',
-        'Lead ' + result.leadId + ' updated. Next action: ' + (result.nextAction || 'Review next workflow step') + '. Status: ' + (result.lifecycleStatus || result.quoteStatus || 'Updated') + '.' + emailMessage
-      );
-    } catch (error) {
-      return htmlResponse_('MIDTS action failed', String(error && error.message ? error.message : error));
-    }
+    var params = e && e.parameter || {};
+    return htmlResponse_(
+      'Workflow action moved to Workspace',
+      'Legacy Apps Script workflow action links are disabled. Open MIDTS Workspace and continue from the operational queue for lead ' + String(params.leadId || '') + '.'
+    );
   }
 
   function applyAction(leadId, actionKey, reviewer) {
-    var action = normalizeAction_(actionKey);
-    if (action === normalizeAction_(ACTIONS.VENDOR_SAFE_READY)) {
-      return MidtsVendorPricingService.markVendorSafePackageReady(leadId, reviewer || 'Email Approval');
-    }
-    if (action === normalizeAction_(ACTIONS.APPROVE_MARGIN)) {
-      return MidtsVendorPricingService.approveLatestMargin(leadId, reviewer || 'Email Approval');
-    }
-    if (action === normalizeAction_(ACTIONS.PREPARE_QUOTE)) {
-      return MidtsQuoteService.prepareQuoteDraft(leadId, reviewer || 'Email Approval');
-    }
-    if (action === normalizeAction_(ACTIONS.APPROVE_QUOTE)) {
-      return MidtsQuoteService.approveQuoteDraft(leadId, reviewer || 'Email Approval');
-    }
-    if (action === normalizeAction_(ACTIONS.SEND_QUOTE)) {
-      return MidtsQuoteDeliveryService.sendQuoteToClient(leadId, reviewer || 'Email Approval');
-    }
-
-    return { ok: false, code: 'UNSUPPORTED_ACTION', message: 'Unsupported action: ' + actionKey };
+    return {
+      ok: false,
+      code: 'LEGACY_WORKFLOW_ACTION_DISABLED',
+      message: 'Legacy Apps Script workflow actions are disabled. Use MIDTS Workspace operational queues.',
+      leadId: leadId,
+      action: actionKey,
+      reviewer: reviewer || 'Workspace'
+    };
   }
 
   function buildActionUrl(leadId, actionKey) {
-    var baseUrl = MidtsConfig.getWebAppUrl();
-    var separator = baseUrl.indexOf('?') === -1 ? '?' : '&';
-    return baseUrl + separator + [
-      'action=' + encodeURIComponent(actionKey),
-      'leadId=' + encodeURIComponent(leadId),
-      'token=' + encodeURIComponent(MidtsConfig.getDecisionToken())
-    ].join('&');
+    var baseUrl = MidtsConfig.getScriptProperty('WORKSPACE_BASE_URL') || 'https://new-midts.vercel.app';
+    var route = workspaceRouteForAction_(actionKey);
+    return String(baseUrl || '').replace(/\/+$/, '') + route + '?leadId=' + encodeURIComponent(leadId || '');
   }
 
-  function sendNextActionEmailIfUseful_(leadId) {
-    try {
-      var leadResult = MidtsSheetService.findLeadById(leadId);
-      if (!leadResult) return { ok: false, status: 'skipped', message: 'Lead not found.' };
-
-      var lifecycleStatus = String(leadResult.lead['Lifecycle Status'] || '');
-      var quoteStatus = String(leadResult.lead['Quote Status'] || '');
-
-      if (lifecycleStatus === 'Vendor Pricing' || quoteStatus === 'Waiting Vendor Price') {
-        return MidtsVendorRequestService.sendRequestSetupEmail(leadId);
-      }
-      if (lifecycleStatus === 'Quote Approved' || quoteStatus === 'Approved to Send') {
-        return MidtsQuoteDeliveryService.sendQuoteSendEmail(leadId);
-      }
-      if (lifecycleStatus === 'Quote Sent' || quoteStatus === 'Sent') {
-        return { ok: false, status: 'skipped', message: 'Awaiting client quote response.' };
-      }
-
-      return MidtsEmailService.sendWorkflowActionEmailForLead(leadId);
-    } catch (error) {
-      return { ok: false, status: 'failed', message: String(error && error.message ? error.message : error) };
-    }
-  }
-
-  function validateActionParams_(params) {
-    if (!params.leadId) {
-      return { ok: false, message: 'Missing leadId.' };
-    }
-    if (!params.action) {
-      return { ok: false, message: 'Missing action.' };
-    }
-    if (!params.token) {
-      return { ok: false, message: 'Missing action token.' };
-    }
-    if (String(params.token) !== MidtsConfig.getDecisionToken()) {
-      return { ok: false, message: 'Invalid action token.' };
-    }
-    if (!isSupportedAction_(params.action)) {
-      return { ok: false, message: 'Unsupported action: ' + params.action };
-    }
-    return { ok: true };
-  }
-
-  function isSupportedAction_(actionKey) {
+  function workspaceRouteForAction_(actionKey) {
     var action = normalizeAction_(actionKey);
-    return action === normalizeAction_(ACTIONS.VENDOR_SAFE_READY) ||
-      action === normalizeAction_(ACTIONS.APPROVE_MARGIN) ||
-      action === normalizeAction_(ACTIONS.PREPARE_QUOTE) ||
-      action === normalizeAction_(ACTIONS.APPROVE_QUOTE) ||
-      action === normalizeAction_(ACTIONS.SEND_QUOTE);
+    if (action === normalizeAction_(ACTIONS.VENDOR_SAFE_READY)) return '/workspace/vendor-safe/review';
+    if (action === normalizeAction_(ACTIONS.APPROVE_MARGIN)) return '/workspace/margin/review';
+    if (action === normalizeAction_(ACTIONS.PREPARE_QUOTE)) return '/workspace/quote-builder/review';
+    if (action === normalizeAction_(ACTIONS.APPROVE_QUOTE)) return '/workspace/quote-builder/review';
+    if (action === normalizeAction_(ACTIONS.SEND_QUOTE)) return '/workspace/proposal-builder/review';
+    return '/workspace';
   }
 
   function normalizeAction_(actionKey) {
