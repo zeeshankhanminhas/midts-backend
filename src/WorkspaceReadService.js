@@ -141,6 +141,37 @@ var MidtsWorkspaceReadService = (function () {
     };
   }
 
+  function listPendingQuoteBuilders() {
+    var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
+    var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
+    var pricingRows = readSheetObjects_(MidtsSheetService.SHEETS.VENDOR_PRICING, MidtsSheetService.VENDOR_PRICING_HEADERS);
+    var packages = readSheetObjects_(MidtsSheetService.SHEETS.VENDOR_SAFE_PACKAGES, MidtsSheetService.VENDOR_SAFE_PACKAGE_HEADERS);
+    var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
+    var latestPricingByLead = latestPricingByLeadId_(pricingRows);
+    var latestPackagesByLead = latestByLeadId_(packages, 'Created At');
+
+    var quotes = leads.filter(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      if (!leadId) return false;
+      if (!quoteBuilderPending_(lead)) return false;
+      var pricing = latestPricingByLead[leadId];
+      return pricing && clean_(pricing['Pricing Status']) === 'Margin Approved' && isYes_(pricing['Pricing Approved']);
+    }).map(function (lead) {
+      var leadId = clean_(lead['Lead ID']);
+      return toQuoteBuilderRecord_(lead, latestIntakesByLead[leadId], latestPricingByLead[leadId], latestPackagesByLead[leadId]);
+    });
+
+    quotes.sort(function (a, b) {
+      return Number(new Date(b.marginApprovedAt || b.dateCreated || 0)) - Number(new Date(a.marginApprovedAt || a.dateCreated || 0));
+    });
+
+    return {
+      ok: true,
+      count: quotes.length,
+      quotes: quotes
+    };
+  }
+
   function readSheetObjects_(sheetName, expectedHeaders) {
     var spreadsheetId = MidtsConfig.getSpreadsheetId();
     var spreadsheet = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
@@ -169,6 +200,18 @@ var MidtsWorkspaceReadService = (function () {
       if (!leadId) return map;
       var existing = map[leadId];
       if (!existing || Number(new Date(row[dateHeader] || 0)) >= Number(new Date(existing[dateHeader] || 0))) {
+        map[leadId] = row;
+      }
+      return map;
+    }, {});
+  }
+
+  function latestPricingByLeadId_(rows) {
+    return rows.reduce(function (map, row) {
+      var leadId = clean_(row['Lead ID']);
+      if (!leadId) return map;
+      var existing = map[leadId];
+      if (!existing || isYes_(row['Latest Revision']) || Number(row['Quote Revision'] || 0) >= Number(existing['Quote Revision'] || 0)) {
         map[leadId] = row;
       }
       return map;
@@ -270,6 +313,42 @@ var MidtsWorkspaceReadService = (function () {
     return base;
   }
 
+  function toQuoteBuilderRecord_(lead, intake, pricing, vendorPackage) {
+    return {
+      leadId: clean_(lead['Lead ID']),
+      lead: clean_(lead['Brief Requirement']) || clean_(lead['Project Type']) || 'Quote builder',
+      client: clean_(lead['Full Name']),
+      company: clean_(lead['Company']),
+      email: clean_(lead['Email']),
+      projectType: clean_(lead['Project Type']) || clean_(intake && intake['Service Type']),
+      briefRequirement: clean_(lead['Brief Requirement']),
+      technicalRequirement: clean_(intake && intake['Technical Scope']),
+      quoteReference: clean_(pricing['Quote Reference'] || lead['Quote Reference']),
+      pricingId: clean_(pricing['Pricing ID']),
+      vendorName: clean_(pricing['Vendor Name']),
+      vendorEmail: clean_(pricing['Vendor Email']),
+      vendorCost: clean_(pricing['Vendor Cost']),
+      vendorCurrency: clean_(pricing['Vendor Currency']),
+      marginType: clean_(pricing['Margin Type']),
+      marginValue: clean_(pricing['Margin Value']),
+      midtsProfitAmount: clean_(pricing['MIDTS Profit Amount']),
+      clientQuoteAmount: clean_(pricing['Client Quote Amount']),
+      clientQuoteCurrency: clean_(pricing['Client Quote Currency'] || pricing['Vendor Currency']),
+      quoteRevision: clean_(pricing['Quote Revision']),
+      pricingStatus: clean_(pricing['Pricing Status']),
+      pricingApprovedAt: toIso_(pricing['Pricing Approved At']),
+      marginApprovedAt: toIso_(pricing['Pricing Approved At'] || lead['Last Updated At']),
+      packageId: vendorPackage ? clean_(vendorPackage['Package ID']) : '',
+      packageLink: vendorPackage ? clean_(vendorPackage['Drive Folder URL']) : '',
+      lifecycleStatus: clean_(lead['Lifecycle Status']),
+      quoteStatus: clean_(lead['Quote Status']),
+      vendorPricingStatus: clean_(lead['Vendor Pricing Status']),
+      nextAction: clean_(lead['Next Action']),
+      status: clean_(lead['Quote Status']) || clean_(lead['Lifecycle Status']),
+      dateCreated: toIso_(lead['Created At'])
+    };
+  }
+
   function step2Complete_(lead) {
     return equivalent_(lead['Step 2 Status'], ['completed']) || equivalent_(lead['Status'], ['step 2 completed']) || Boolean(lead['Step 2 Completed At']);
   }
@@ -298,6 +377,13 @@ var MidtsWorkspaceReadService = (function () {
     if (request && ['Pending Send', 'Sent'].indexOf(clean_(request['Request Status'])) !== -1) return false;
     if (isYes_(lead['Vendor Safe Package Required']) && !isYes_(lead['Vendor Safe Package Ready'])) return false;
     return equivalent_(lead['Vendor Pricing Status'], ['contact vendor', 'waiting vendor price']) || equivalent_(lead['Next Action'], ['contact vendor']);
+  }
+
+  function quoteBuilderPending_(lead) {
+    if (!isYes_(lead['Quote Required'])) return false;
+    if (clean_(lead['Lifecycle Status']) !== 'Quote Preparation') return false;
+    if (clean_(lead['Quote Status']) !== 'Ready for Quote Draft') return false;
+    return clean_(lead['Vendor Pricing Status']) === 'Margin Approved';
   }
 
   function isYes_(value) {
@@ -353,6 +439,7 @@ var MidtsWorkspaceReadService = (function () {
     listPendingTechnicalReviews: listPendingTechnicalReviews,
     listPendingQualificationDecisions: listPendingQualificationDecisions,
     listPendingVendorSafePackages: listPendingVendorSafePackages,
-    listPendingVendorRequestSetups: listPendingVendorRequestSetups
+    listPendingVendorRequestSetups: listPendingVendorRequestSetups,
+    listPendingQuoteBuilders: listPendingQuoteBuilders
   };
 })();
