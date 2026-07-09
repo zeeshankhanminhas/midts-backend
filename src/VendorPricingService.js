@@ -328,7 +328,7 @@ var MidtsVendorPricingService = (function () {
 
   function getDefaultMarginValue_() {
     var configured = parseMoney_(MidtsConfig.getScriptProperty('DEFAULT_MARGIN_VALUE'));
-    return configured === null ? 25 : configured;
+    return configured === null ? 30 : configured;
   }
 
   function parseMoney_(value) {
