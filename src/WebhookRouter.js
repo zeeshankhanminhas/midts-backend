@@ -62,6 +62,7 @@ var MidtsWebhookRouter = (function () {
     if (action === 'listpendingvendorsafepackages') return workspaceReadSuccess_(requestId, payload, MidtsWorkspaceReadService.listPendingVendorSafePackages(), 'Pending vendor-safe packages listed');
     if (action === 'listpendingvendorrequestsetups') return workspaceReadSuccess_(requestId, payload, MidtsWorkspaceReadService.listPendingVendorRequestSetups(), 'Pending vendor request setups listed');
     if (action === 'listpendingmarginreviews') return workspaceReadSuccess_(requestId, payload, MidtsMarginReviewService.listPendingMarginReviews(), 'Pending margin reviews listed');
+    if (action === 'listpendingquotebuilders') return workspaceReadSuccess_(requestId, payload, MidtsWorkspaceReadService.listPendingQuoteBuilders(), 'Pending quote builder records listed');
     MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'workspace_read_failed', message: 'UNSUPPORTED_WORKSPACE_READ_ACTION: ' + String(payload.action || ''), payload: scrubPayload(payload), source: payload.source || 'WorkspaceRead' });
     return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported: ' + String(payload.action || ''), { requestId: requestId });
   }
@@ -112,13 +113,26 @@ var MidtsWebhookRouter = (function () {
   }
 
   function handleMarginReview_(payload, requestId) {
-    var marginResult = MidtsMarginReviewService.approveMargin(payload.leadId || payload.lead_id, payload.reviewer || payload.actor || 'MIDTS Margin Reviewer');
-    if (!marginResult.ok) {
-      MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'margin_review_failed', message: marginResult.message || marginResult.code || 'Margin could not be approved.', payload: scrubPayload(payload), submissionId: payload.leadId || payload.lead_id || '', source: payload.source || 'WorkspaceMarginReview' });
-      return MidtsResponseService.failure(marginResult.code || 'MARGIN_REVIEW_FAILED', marginResult.message || 'Margin could not be approved.', { requestId: requestId });
+    var action = normalizeCompact_(payload.action || 'approveMargin');
+    var leadId = payload.leadId || payload.lead_id;
+    var reviewer = payload.reviewer || payload.actor || 'MIDTS Margin Reviewer';
+    var notes = payload.internalNotes || payload.notes || '';
+    var marginResult;
+
+    if (action === 'rejectmargin') {
+      marginResult = MidtsMarginReviewService.rejectMargin(leadId, reviewer, notes);
+    } else if (action === 'returnmargintovendor') {
+      marginResult = MidtsMarginReviewService.returnMarginToVendor(leadId, reviewer, notes);
+    } else {
+      marginResult = MidtsMarginReviewService.approveMargin(leadId, reviewer);
     }
-    MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'margin_review_success', message: 'Margin approved from Workspace', payload: scrubPayload(payload), submissionId: marginResult.leadId, source: payload.source || 'WorkspaceMarginReview' });
-    return MidtsResponseService.success(Object.assign({ requestId: requestId, message: 'Margin approved. Lead moved to Quote Builder.' }, marginResult));
+
+    if (!marginResult.ok) {
+      MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'margin_review_failed', message: marginResult.message || marginResult.code || 'Margin review action could not be completed.', payload: scrubPayload(payload), submissionId: leadId || '', source: payload.source || 'WorkspaceMarginReview' });
+      return MidtsResponseService.failure(marginResult.code || 'MARGIN_REVIEW_FAILED', marginResult.message || 'Margin review action could not be completed.', { requestId: requestId });
+    }
+    MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: action === 'approvemargin' ? 'margin_review_success' : 'margin_review_outcome_success', message: action === 'approvemargin' ? 'Margin approved from Workspace' : 'Margin review outcome recorded from Workspace', payload: scrubPayload(payload), submissionId: marginResult.leadId, source: payload.source || 'WorkspaceMarginReview' });
+    return MidtsResponseService.success(Object.assign({ requestId: requestId, message: action === 'approvemargin' ? 'Margin approved. Lead moved to Quote Builder.' : 'Margin review outcome recorded.' }, marginResult));
   }
 
   function logWorkspaceRead_(requestId, payload, message) { MidtsLogger.logWebhookAttempt({ requestId: requestId, outcome: 'workspace_read_success', message: message, payload: scrubPayload(payload), source: payload.source || 'WorkspaceRead' }); }
@@ -137,14 +151,14 @@ var MidtsWebhookRouter = (function () {
   function isWorkspaceReadPayload_(payload) {
     var stage = normalizeCompact_(payload.formStage || payload.form_stage || payload.stage || '');
     var action = normalizeCompact_(payload.action || '');
-    return stage === 'workspaceread' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions' || action === 'listpendingvendorsafepackages' || action === 'listpendingvendorrequestsetups' || action === 'listpendingmarginreviews';
+    return stage === 'workspaceread' || action === 'listpendingtechnicalreviews' || action === 'listpendingqualificationdecisions' || action === 'listpendingvendorsafepackages' || action === 'listpendingvendorrequestsetups' || action === 'listpendingmarginreviews' || action === 'listpendingquotebuilders';
   }
   function isStep2Payload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); return stage === 'step2' || stage === 'technicalintake'; }
   function isTechnicalReviewPayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'technicalreview' || action === 'recordtechnicalreview'; }
   function isQualificationDecisionPayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'qualificationdecision' || action === 'recordqualificationdecision'; }
   function isVendorSafePackagePayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'vendorsafepackage' || action === 'recordvendorsafepackage'; }
   function isVendorRequestSetupPayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'vendorrequestsetup' || action === 'setupvendorrequest'; }
-  function isMarginReviewPayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'marginreview' || action === 'approvemargin'; }
+  function isMarginReviewPayload_(payload) { var stage = normalizeStage_(payload.formStage || payload.form_stage || payload.stage || ''); var action = normalizeCompact_(payload.action || ''); return stage === 'marginreview' || action === 'approvemargin' || action === 'rejectmargin' || action === 'returnmargintovendor'; }
   function normalizeStage_(value) { return normalizeCompact_(value); }
   function normalizeCompact_(value) { return String(value || '').trim().toLowerCase().replace(/_/g, '').replace(/-/g, '').replace(/\s+/g, ''); }
   function looksLikeJson(contents) { var trimmed = String(contents || '').trim(); return trimmed.charAt(0) === '{' || trimmed.charAt(0) === '['; }
