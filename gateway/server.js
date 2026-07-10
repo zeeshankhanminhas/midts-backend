@@ -42,6 +42,9 @@ const workspaceReadActionAliases = {
   listpendingquotedraftreviews: 'listPendingQuoteDraftReviews',
   listpendingquotedraftreview: 'listPendingQuoteDraftReviews',
   pendingquotedraftreviews: 'listPendingQuoteDraftReviews',
+  getquotedocument: 'getQuoteDocument',
+  getquotebyid: 'getQuoteDocument',
+  getquotebyleadid: 'getQuoteDocument',
 };
 const workspaceReadActions = Object.keys(workspaceReadActionAliases);
 
@@ -125,6 +128,9 @@ function validatePayload(payload) {
   if (compactStage === 'workspaceread' || workspaceReadActions.includes(compactAction)) {
     const canonicalAction = canonicalWorkspaceReadAction(action);
     if (!canonicalAction) return `Unsupported workspace read action: ${action || '[missing]'}.`;
+    if (canonicalAction === 'getQuoteDocument' && !firstString(payload, ['leadId', 'lead_id', 'quoteSnapshotId', 'quote_snapshot_id', 'documentId', 'document_id'])) {
+      return 'Missing quote document reference.';
+    }
     payload.action = canonicalAction;
     return '';
   }
