@@ -37,6 +37,7 @@ const workspaceReadActionAliases = {
   listpendingquotebuilders: 'listPendingQuoteBuilders',
   listpendingquotebuilder: 'listPendingQuoteBuilders',
   listpendingquotebuilderrecords: 'listPendingQuoteBuilders',
+  listpendingquotedrafts: 'listPendingQuoteBuilders',
   pendingquotebuilders: 'listPendingQuoteBuilders',
 };
 const workspaceReadActions = Object.keys(workspaceReadActionAliases);
@@ -104,6 +105,10 @@ function allowedMarginAction(value) {
   return ['approvemargin', 'updatemarginreview', 'rejectmargin', 'returnmargintovendor'].includes(normalizedCompact(value));
 }
 
+function allowedQuoteBuilderAction(value) {
+  return ['preparequotedraft'].includes(normalizedCompact(value));
+}
+
 function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
@@ -114,6 +119,14 @@ function validatePayload(payload) {
     const canonicalAction = canonicalWorkspaceReadAction(action);
     if (!canonicalAction) return `Unsupported workspace read action: ${action || '[missing]'}.`;
     payload.action = canonicalAction;
+    return '';
+  }
+
+  if (compactStage === 'quotebuilder' || allowedQuoteBuilderAction(action)) {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
+    if (action && !allowedQuoteBuilderAction(action)) return 'Unsupported Quote Builder action.';
+    payload.action = 'prepareQuoteDraft';
     return '';
   }
 
