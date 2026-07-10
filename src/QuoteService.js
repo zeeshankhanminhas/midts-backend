@@ -24,7 +24,7 @@ var MidtsQuoteService = (function () {
     var quoteReference = existingLead.lead['Quote Reference'] || latestPricing.pricing['Quote Reference'] || createQuoteReference_();
     existingLead.lead['Quote Reference'] = quoteReference;
     var quoteSnapshot = MidtsDocumentService.createQuoteSnapshot(existingLead.lead, latestPricing.pricing);
-    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
+    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing, quoteSnapshot.documentId);
     var now = new Date();
     var preparedBy = preparer || 'Apps Script Test';
 
@@ -95,9 +95,11 @@ var MidtsQuoteService = (function () {
       return { ok: false, code: 'VENDOR_PRICING_NOT_FOUND', message: 'Approved vendor pricing is required to refresh the quote document link.' };
     }
 
-    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing);
+    var quoteDocument = MidtsDocumentService.getQuoteDocument({ leadId: leadId, quoteReference: quoteReference });
+    var quoteSnapshotId = quoteDocument && quoteDocument.ok && quoteDocument.quoteDocument ? quoteDocument.quoteDocument.quoteSnapshotId : '';
+    var quoteDocumentLink = buildQuoteDocumentLink_(quoteReference, leadId, existingLead.lead, latestPricing.pricing, quoteSnapshotId);
     if (!quoteDocumentLink) {
-      return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'Set FRONTEND_BASE_URL or QUOTE_TEMPLATE_URL to the private workspace quote route.' };
+      return { ok: false, code: 'QUOTE_TEMPLATE_URL_MISSING', message: 'Set WORKSPACE_BASE_URL or FRONTEND_BASE_URL to the private workspace quote route.' };
     }
 
     var now = new Date();
@@ -109,10 +111,11 @@ var MidtsQuoteService = (function () {
     MidtsLogger.logWebhookAttempt({
       requestId: 'QUOTE-LINK-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmssSSS'),
       outcome: 'quote_document_link_refreshed',
-      message: 'Quote document link refreshed from quote reference and private workspace template URL',
+      message: 'Quote document link refreshed from quote snapshot and private workspace route',
       payload: {
         leadId: leadId,
         quoteReference: quoteReference,
+        quoteSnapshotId: quoteSnapshotId,
         quoteStatus: updatedLead.lead['Quote Status'] || '',
         quoteDocumentLink: quoteDocumentLink
       },
@@ -125,6 +128,7 @@ var MidtsQuoteService = (function () {
       ok: true,
       leadId: leadId,
       quoteReference: quoteReference,
+      quoteSnapshotId: quoteSnapshotId,
       quoteStatus: updatedLead.lead['Quote Status'] || '',
       lifecycleStatus: updatedLead.lead['Lifecycle Status'] || '',
       quoteDocumentLink: quoteDocumentLink
@@ -243,7 +247,7 @@ var MidtsQuoteService = (function () {
     return { ok: true };
   }
 
-  function buildQuoteDocumentLink_(quoteReference, leadId, lead, pricing) {
+  function buildQuoteDocumentLink_(quoteReference, leadId, lead, pricing, quoteSnapshotId) {
     var templateUrl = getPrivateQuoteTemplateUrl_();
     var clientCurrency = String(pricing && pricing['Client Quote Currency'] || MidtsConfig.getScriptProperty('CLIENT_QUOTE_CURRENCY') || 'GBP').toUpperCase();
     var total = formatQuoteAmount_(pricing && pricing['Client Quote Amount'], clientCurrency);
@@ -259,8 +263,9 @@ var MidtsQuoteService = (function () {
 
     var separator = templateUrl.indexOf('?') === -1 ? '?' : '&';
     return templateUrl + separator + [
-      'quoteReference=' + encodeURIComponent(quoteReference || ''),
       'leadId=' + encodeURIComponent(leadId || ''),
+      'quoteSnapshotId=' + encodeURIComponent(quoteSnapshotId || ''),
+      'quoteReference=' + encodeURIComponent(quoteReference || ''),
       'clientName=' + encodeURIComponent(String(lead && lead['Full Name'] || 'Client')),
       'scope=' + encodeURIComponent(scope),
       'total=' + encodeURIComponent(total),
@@ -276,6 +281,11 @@ var MidtsQuoteService = (function () {
     var configuredTemplateUrl = String(MidtsConfig.getScriptProperty('QUOTE_TEMPLATE_URL') || '').trim();
     if (configuredTemplateUrl && !isPublicDocumentTemplateUrl_(configuredTemplateUrl)) {
       return configuredTemplateUrl;
+    }
+
+    var workspaceBaseUrl = String(MidtsConfig.getScriptProperty('WORKSPACE_BASE_URL') || '').trim().replace(/\/+$/, '');
+    if (workspaceBaseUrl) {
+      return workspaceBaseUrl + '/workspace/documents/quote';
     }
 
     var frontendBaseUrl = String(MidtsConfig.getScriptProperty('FRONTEND_BASE_URL') || '').trim().replace(/\/+$/, '');
