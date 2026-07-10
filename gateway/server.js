@@ -39,6 +39,9 @@ const workspaceReadActionAliases = {
   listpendingquotebuilderrecords: 'listPendingQuoteBuilders',
   listpendingquotedrafts: 'listPendingQuoteBuilders',
   pendingquotebuilders: 'listPendingQuoteBuilders',
+  listpendingquotedraftreviews: 'listPendingQuoteDraftReviews',
+  listpendingquotedraftreview: 'listPendingQuoteDraftReviews',
+  pendingquotedraftreviews: 'listPendingQuoteDraftReviews',
 };
 const workspaceReadActions = Object.keys(workspaceReadActionAliases);
 
@@ -109,6 +112,10 @@ function allowedQuoteBuilderAction(value) {
   return ['preparequotedraft'].includes(normalizedCompact(value));
 }
 
+function allowedQuoteDraftReviewAction(value) {
+  return ['approvequotedraft'].includes(normalizedCompact(value));
+}
+
 function validatePayload(payload) {
   const stage = firstString(payload, ['formStage', 'form_stage', 'stage']).toLowerCase();
   const action = firstString(payload, ['action']).toLowerCase();
@@ -119,6 +126,14 @@ function validatePayload(payload) {
     const canonicalAction = canonicalWorkspaceReadAction(action);
     if (!canonicalAction) return `Unsupported workspace read action: ${action || '[missing]'}.`;
     payload.action = canonicalAction;
+    return '';
+  }
+
+  if (compactStage === 'quotedraftreview' || allowedQuoteDraftReviewAction(action)) {
+    if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
+    if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
+    if (action && !allowedQuoteDraftReviewAction(action)) return 'Unsupported Quote Draft Review action.';
+    payload.action = 'approveQuoteDraft';
     return '';
   }
 
@@ -134,7 +149,7 @@ function validatePayload(payload) {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
     if (!firstString(payload, ['reviewer', 'actor'])) return 'Missing reviewer.';
     if (action && !allowedMarginAction(action)) return 'Unsupported margin review action.';
-    if (compactAction === 'updatemarginreview' && !firstString(payload, ['marginValue', 'margin_value'])) return 'Missing margin value.';
+    if ((compactAction === 'updatemarginreview' || compactAction === 'approvemargin') && !firstString(payload, ['marginValue', 'margin_value'])) return 'Missing gross margin value.';
     return '';
   }
 
