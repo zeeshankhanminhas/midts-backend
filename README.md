@@ -19,9 +19,10 @@ The first launchable version does one controlled commercial lifecycle well:
 11. Record vendor pricing and margin calculation in the Vendor Pricing tab.
 12. Approve the latest pricing revision before quote preparation.
 13. Prepare a quote draft state using the private Workspace Quote document route.
-14. Approve the quote draft before sending.
-15. Record email attempts in an email log sheet.
-16. Return a clear success or failure response.
+14. Serve saved quote snapshots to the protected Workspace quote document route.
+15. Approve the quote draft before sending.
+16. Record email attempts in an email log sheet.
+17. Return a clear success or failure response.
 
 No dashboard, document generation, frontend rendering, or Apps Script-only website logic belongs in this repo.
 
@@ -45,6 +46,7 @@ Apps Script is the deployment target only.
 | `Leads` | One-row lifecycle summary for each enquiry. |
 | `Technical Intake` | Step 2 technical/commercial qualification detail. |
 | `Vendor Pricing` | Vendor cost, margin, quote pricing, and revision tracking. |
+| `Documents` | Quote snapshots, PDF audit IDs, and client-ready document state. |
 | `Webhook Logs` | Intake, decision, duplicate, and routing audit trail. |
 | `Email Logs` | Client/internal/outcome email audit trail. |
 
@@ -64,9 +66,10 @@ Run `setupLaunchSheets` after pushing Apps Script changes to create any missing 
 | `TEST_EMAIL` | Optional. Recipient for Apps Script test emails. |
 | `DEFAULT_MARGIN_TYPE` | Optional. `percentage` or `fixed`. Defaults to `percentage`. |
 | `DEFAULT_MARGIN_VALUE` | Optional. Default margin value. Defaults to `25`. |
-| `FRONTEND_BASE_URL` | Optional but recommended. Absolute frontend origin used to build private Workspace document links, for example `https://<midts-frontend-domain>`. |
+| `WORKSPACE_BASE_URL` | Recommended. Absolute production Workspace origin used to build protected document links, for example `https://new-midts.vercel.app`. |
+| `FRONTEND_BASE_URL` | Optional fallback. Absolute frontend origin used when `WORKSPACE_BASE_URL` is not set. |
 | `CAPABILITY_STATEMENT_URL` | Optional. Controlled capability statement URL. Do not point this at public `/documents/*` template routes. |
-| `QUOTE_TEMPLATE_URL` | Optional override for the private Workspace quote route. If omitted, backend uses `FRONTEND_BASE_URL + /workspace/documents/quote`; public `/documents/quote` values are ignored. |
+| `QUOTE_TEMPLATE_URL` | Optional override for the private Workspace quote route. If omitted, backend uses `WORKSPACE_BASE_URL + /workspace/documents/quote`, then `FRONTEND_BASE_URL + /workspace/documents/quote`; public `/documents/quote` values are ignored. |
 
 At least one of `STEP2_FORM_URL` or `STEP2_FORM_BASE_URL` should exist before real client launch. If both are missing, the acknowledgement email asks the client to reply for help instead of giving a broken link.
 
@@ -110,6 +113,23 @@ Step 1 Lead
 If Step 2 marks a vendor-safe package as required, a Qualified decision routes the lead to `Vendor Safe Review` first. Otherwise it routes the lead to `Vendor Pricing`.
 
 Vendor pricing, margin approval, quote preparation, and quote approval are internal workflow services, not public website webhook routes. The public website token must not become a commercial control key.
+
+## Workspace Quote Documents
+
+Quote Builder creates a row in the `Documents` sheet with `Document Type = Quote Snapshot`, stores the snapshot ID, and writes a protected link to the lead:
+
+```text
+/workspace/documents/quote?leadId=<leadId>&quoteSnapshotId=<documentId>&quoteReference=<quoteReference>&status=draft
+```
+
+The Workspace route reads saved quote data through the gateway action:
+
+```text
+action=getQuoteDocument
+formStage=workspaceRead
+```
+
+The read accepts `quoteSnapshotId` plus `leadId`. Existing links that only have `leadId` and `quoteReference` are repaired at read time by loading the latest matching quote snapshot, so rows should not be manually edited.
 
 ## Apps Script Test Order
 
