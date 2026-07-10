@@ -37,6 +37,46 @@ var MidtsDocumentService = (function () {
     return { documentId: documentId, snapshot: snapshot };
   }
 
+  function getQuoteDocument(input) {
+    input = input || {};
+    var leadId = String(input.leadId || input.lead_id || '').trim();
+    var quoteSnapshotId = String(input.quoteSnapshotId || input.quote_snapshot_id || input.documentId || input.document_id || '').trim();
+    var quoteReference = String(input.quoteReference || input.quote_reference || '').trim();
+    if (!leadId && !quoteSnapshotId) return { ok: false, code: 'MISSING_QUOTE_DOCUMENT_REFERENCE', message: 'Lead ID or quote snapshot ID is required.' };
+
+    var document = quoteSnapshotId ? findQuoteSnapshotByDocumentId_(quoteSnapshotId, leadId) : null;
+    if (!document) document = findLatestQuoteSnapshot_(leadId, quoteReference);
+    if (!document) return { ok: false, code: 'QUOTE_DOCUMENT_NOT_FOUND', message: 'Quote document snapshot was not found for this lead.' };
+
+    var record = document.record;
+    var snapshot = parseSnapshotJson_(record['Snapshot JSON']);
+    if (!snapshot) return { ok: false, code: 'QUOTE_SNAPSHOT_INVALID', message: 'Quote snapshot data could not be read.' };
+
+    var pricing = leadId ? MidtsSheetService.findLatestVendorPricingByLeadId(leadId) : null;
+    return {
+      ok: true,
+      quoteDocument: {
+        quoteSnapshotId: String(record['Document ID'] || ''),
+        leadId: String(record['Lead ID'] || ''),
+        quoteReference: String(record['Quote Reference'] || ''),
+        documentType: String(record['Document Type'] || ''),
+        revision: String(record['Revision'] || ''),
+        status: String(record['Status'] || ''),
+        driveFileId: String(record['Drive File ID'] || ''),
+        driveUrl: String(record['Drive URL'] || ''),
+        createdAt: formatDateValue_(record['Created At']),
+        approvedAt: formatDateValue_(record['Approved At']),
+        approvedBy: String(record['Approved By'] || ''),
+        sentAt: formatDateValue_(record['Sent At']),
+        sentTo: String(record['Sent To'] || ''),
+        lastUpdatedAt: formatDateValue_(record['Last Updated At']),
+        snapshot: snapshot,
+        renderData: snapshot.renderData || null,
+        internalCommercial: pricing ? buildInternalCommercial_(pricing.pricing) : {}
+      }
+    };
+  }
+
   function approveQuoteSnapshot(leadId, quoteReference, approver) {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
     if (!document) return { ok: false, message: 'No quote snapshot exists for this lead and quote reference.' };
@@ -155,6 +195,20 @@ var MidtsDocumentService = (function () {
     };
   }
 
+  function findQuoteSnapshotByDocumentId_(documentId, leadId) {
+    var sheet = getSheet_();
+    var values = sheet.getDataRange().getValues();
+    if (values.length < 2) return null;
+    var headers = headerMap_(values[0]);
+    for (var i = values.length - 1; i >= 1; i -= 1) {
+      var matchesDocument = String(values[i][headers['Document ID'] - 1]) === String(documentId);
+      var matchesLead = !leadId || String(values[i][headers['Lead ID'] - 1]) === String(leadId);
+      var matchesType = String(values[i][headers['Document Type'] - 1]) === 'Quote Snapshot';
+      if (matchesDocument && matchesLead && matchesType) return rowResult_(sheet, i + 1, headers, values[i]);
+    }
+    return null;
+  }
+
   function findLatestQuoteSnapshot_(leadId, quoteReference) {
     var sheet = getSheet_();
     var values = sheet.getDataRange().getValues();
@@ -162,15 +216,45 @@ var MidtsDocumentService = (function () {
     var headers = headerMap_(values[0]);
     var matches = [];
     for (var i = 1; i < values.length; i += 1) {
-      if (String(values[i][headers['Lead ID'] - 1]) === String(leadId) &&
-          String(values[i][headers['Quote Reference'] - 1]) === String(quoteReference) &&
-          String(values[i][headers['Document Type'] - 1]) === 'Quote Snapshot') {
-        matches.push(rowResult_(sheet, i + 1, headers, values[i]));
-      }
+      var matchesLead = String(values[i][headers['Lead ID'] - 1]) === String(leadId);
+      var matchesReference = !quoteReference || String(values[i][headers['Quote Reference'] - 1]) === String(quoteReference);
+      var matchesType = String(values[i][headers['Document Type'] - 1]) === 'Quote Snapshot';
+      if (matchesLead && matchesReference && matchesType) matches.push(rowResult_(sheet, i + 1, headers, values[i]));
     }
     return matches.sort(function (left, right) {
       return new Date(right.record['Created At'] || 0).getTime() - new Date(left.record['Created At'] || 0).getTime();
     })[0] || null;
+  }
+
+  function buildInternalCommercial_(pricing) {
+    pricing = pricing || {};
+    return {
+      pricingId: String(pricing['Pricing ID'] || ''),
+      vendorName: String(pricing['Vendor Name'] || ''),
+      vendorEmail: String(pricing['Vendor Email'] || ''),
+      vendorCost: String(pricing['Vendor Cost'] || ''),
+      vendorCurrency: String(pricing['Vendor Currency'] || ''),
+      marginType: String(pricing['Margin Type'] || ''),
+      marginValue: String(pricing['Margin Value'] || ''),
+      midtsProfitAmount: String(pricing['MIDTS Profit Amount'] || ''),
+      clientQuoteAmount: String(pricing['Client Quote Amount'] || ''),
+      clientQuoteCurrency: String(pricing['Client Quote Currency'] || ''),
+      pricingStatus: String(pricing['Pricing Status'] || ''),
+      pricingApproved: String(pricing['Pricing Approved'] || '')
+    };
+  }
+
+  function parseSnapshotJson_(value) {
+    if (value && typeof value === 'object') return value;
+    try { return JSON.parse(String(value || '{}')); } catch (error) { return null; }
+  }
+
+  function formatDateValue_(value) {
+    if (!value) return '';
+    if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+      return Utilities.formatDate(value, 'Europe/London', "yyyy-MM-dd'T'HH:mm:ssXXX");
+    }
+    return String(value || '');
   }
 
   function getSheet_() {
@@ -225,6 +309,7 @@ var MidtsDocumentService = (function () {
   return {
     ensureDocumentsSheet: ensureDocumentsSheet,
     createQuoteSnapshot: createQuoteSnapshot,
+    getQuoteDocument: getQuoteDocument,
     approveQuoteSnapshot: approveQuoteSnapshot,
     getApprovedQuoteSnapshot: getApprovedQuoteSnapshot,
     attachQuotePdf: attachQuotePdf,
