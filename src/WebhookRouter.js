@@ -45,6 +45,7 @@ var MidtsWebhookRouter = (function () {
     if (action === 'listpendingmarginreviews') return readSuccess_(requestId, MidtsMarginReviewService.listPendingMarginReviews());
     if (action === 'listpendingquotebuilders' || action === 'listpendingquotedrafts') return readSuccess_(requestId, MidtsQuoteBuilderService.listPendingQuoteBuilders());
     if (action === 'listpendingquotedraftreviews') return readSuccess_(requestId, MidtsQuoteDraftReviewService.listPendingQuoteDraftReviews());
+    if (action === 'getquotedocument' || action === 'getquotebyid' || action === 'getquotebyleadid') return readSuccess_(requestId, MidtsDocumentService.getQuoteDocument(payload));
     return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported: ' + String(payload.action || ''), { requestId:requestId });
   }
   function readSuccess_(requestId, result) { return MidtsResponseService.success(Object.assign({ requestId:requestId }, result)); }
@@ -86,7 +87,7 @@ var MidtsWebhookRouter = (function () {
   }
 
   function parsePostEvent(e) { if (!e) return {}; if (e.postData && e.postData.contents) { var c=e.postData.contents; var t=String(e.postData.type || '').toLowerCase(); if (t.indexOf('application/json') !== -1 || looksLikeJson(c)) return JSON.parse(c); return parseUrlEncoded(c); } return Object.assign({}, e.parameter || {}); }
-  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews'].indexOf(a)!==-1; }
+  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
   function isStep2Payload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='step2' || s==='technicalintake'; }
   function isTechnicalReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='technicalreview' || normalizeCompact_(p.action)==='recordtechnicalreview'; }
   function isQualificationDecisionPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='qualificationdecision' || normalizeCompact_(p.action)==='recordqualificationdecision'; }
