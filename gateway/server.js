@@ -184,7 +184,14 @@ function validatePayload(payload) {
 
   if (compactStage === 'technicalreview' || compactAction === 'recordtechnicalreview') {
     if (!firstString(payload, ['leadId', 'lead_id'])) return 'Missing lead reference.';
-    if (!firstString(payload, ['reviewer'])) return 'Missing reviewer.';
+    if (!firstString(payload, ['reviewer', 'partnerReviewer', 'partner_reviewer'])) return 'Missing partner reviewer.';
+    if (!firstString(payload, ['reviewerOrganisation', 'reviewer_organisation', 'partnerOrganisation', 'partner_organisation'])) return 'Missing reviewer organisation.';
+    if (!firstString(payload, ['reviewerEmail', 'reviewer_email', 'partnerReviewerEmail', 'partner_reviewer_email'])) return 'Missing reviewer email.';
+    if (!firstString(payload, ['filesAndRevisionsReviewed', 'files_and_revisions_reviewed'])) return 'Missing files and revisions reviewed.';
+    if (!firstString(payload, ['partnerReviewPackageLink', 'partner_review_package_link', 'reviewPackageLink', 'review_package_link'])) return 'Missing partner review package link.';
+    if (!firstString(payload, ['partnerAssessmentDocumentLink', 'partner_assessment_document_link', 'assessmentDocumentLink', 'assessment_document_link'])) return 'Missing partner assessment document link.';
+    if (!firstString(payload, ['feasibilityStatus', 'feasibility_status', 'technicalOutcome', 'technical_outcome'])) return 'Missing feasibility status.';
+    if (!firstString(payload, ['partnerSubmittedAt', 'partner_submitted_at', 'assessmentSubmittedAt', 'assessment_submitted_at'])) return 'Missing partner submitted timestamp.';
     if (!firstString(payload, ['reviewSummary', 'review_summary'])) return 'Missing review summary.';
     if (!firstString(payload, ['recommendation'])) return 'Missing recommendation.';
     return '';
