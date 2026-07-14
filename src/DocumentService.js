@@ -52,7 +52,6 @@ var MidtsDocumentService = (function () {
     var snapshot = parseSnapshotJson_(record['Snapshot JSON']);
     if (!snapshot) return { ok: false, code: 'QUOTE_SNAPSHOT_INVALID', message: 'Quote snapshot data could not be read.' };
 
-    var pricing = leadId ? MidtsSheetService.findLatestVendorPricingByLeadId(leadId) : null;
     return {
       ok: true,
       quoteDocument: {
@@ -71,8 +70,7 @@ var MidtsDocumentService = (function () {
         sentTo: String(record['Sent To'] || ''),
         lastUpdatedAt: formatDateValue_(record['Last Updated At']),
         snapshot: snapshot,
-        renderData: snapshot.renderData || null,
-        internalCommercial: pricing ? buildInternalCommercial_(pricing.pricing) : {}
+        renderData: snapshot.renderData || null
       }
     };
   }
@@ -224,24 +222,6 @@ var MidtsDocumentService = (function () {
     return matches.sort(function (left, right) {
       return new Date(right.record['Created At'] || 0).getTime() - new Date(left.record['Created At'] || 0).getTime();
     })[0] || null;
-  }
-
-  function buildInternalCommercial_(pricing) {
-    pricing = pricing || {};
-    return {
-      pricingId: String(pricing['Pricing ID'] || ''),
-      vendorName: String(pricing['Vendor Name'] || ''),
-      vendorEmail: String(pricing['Vendor Email'] || ''),
-      vendorCost: String(pricing['Vendor Cost'] || ''),
-      vendorCurrency: String(pricing['Vendor Currency'] || ''),
-      marginType: String(pricing['Margin Type'] || ''),
-      marginValue: String(pricing['Margin Value'] || ''),
-      midtsProfitAmount: String(pricing['MIDTS Profit Amount'] || ''),
-      clientQuoteAmount: String(pricing['Client Quote Amount'] || ''),
-      clientQuoteCurrency: String(pricing['Client Quote Currency'] || ''),
-      pricingStatus: String(pricing['Pricing Status'] || ''),
-      pricingApproved: String(pricing['Pricing Approved'] || '')
-    };
   }
 
   function parseSnapshotJson_(value) {
