@@ -3,12 +3,17 @@ var MidtsVendorRequestService = (function () {
   var HEADERS = [
     'Request ID',
     'Lead ID',
+    'Technical Review ID',
     'Quote Reference',
     'Created At',
     'Sent At',
     'Vendor Name',
     'Vendor Email',
     'Vendor Package Link',
+    'Reviewer Organisation',
+    'Files And Revisions Priced',
+    'Source Package ID',
+    'Scope Revision',
     'Request Token Hash',
     'Request Status',
     'Submitted At',
@@ -272,8 +277,28 @@ var MidtsVendorRequestService = (function () {
       if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Vendor Pricing') {
         return { ok: false, message: 'Lead is not in Vendor Pricing.' };
       }
+      if (String(leadResult.lead['Lead Status'] || '') !== 'Qualified') {
+        return { ok: false, message: 'Lead must be qualified before vendor pricing is requested.' };
+      }
       if (findOpenRequestForLeadAndVendor_(leadId, vendorEmail)) {
         return { ok: false, message: 'An open vendor pricing request already exists for this vendor and lead.' };
+      }
+
+      var reviewResult = MidtsSheetService.findLatestTechnicalReviewByLeadId(leadId);
+      var review = reviewResult && reviewResult.review || {};
+      var reviewGuard = guardCompleteAssessment_(review);
+      if (!reviewGuard.ok) return reviewGuard;
+
+      var packageResult = MidtsSheetService.findLatestVendorSafePackageByLeadId(leadId);
+      var vendorPackage = packageResult && packageResult.vendorSafePackage || {};
+      var approvedPackageLink = String(vendorPackage['Drive Folder URL'] || '').trim();
+      if (String(leadResult.lead['Vendor Safe Package Required'] || '').toLowerCase() === 'yes') {
+        if (!approvedPackageLink || String(vendorPackage['Package Status'] || '') !== 'Approved for Vendor Pricing') {
+          return { ok: false, message: 'Approved vendor-safe package is required before vendor pricing is requested.' };
+        }
+        if (packageLink !== approvedPackageLink) {
+          return { ok: false, message: 'Vendor-safe package link must match the latest approved package record.' };
+        }
       }
 
       var now = new Date();
@@ -283,12 +308,17 @@ var MidtsVendorRequestService = (function () {
       var request = {
         'Request ID': requestId,
         'Lead ID': leadId,
+        'Technical Review ID': review['Technical Review ID'] || '',
         'Quote Reference': leadResult.lead['Quote Reference'] || '',
         'Created At': now,
         'Sent At': '',
         'Vendor Name': vendorName,
         'Vendor Email': vendorEmail,
         'Vendor Package Link': packageLink,
+        'Reviewer Organisation': review['Reviewer Organisation'] || '',
+        'Files And Revisions Priced': review['Files And Revisions Reviewed'] || '',
+        'Source Package ID': vendorPackage['Package ID'] || '',
+        'Scope Revision': vendorPackage['Package Hash'] || '',
         'Request Token Hash': tokenHash,
         'Request Status': 'Pending Send',
         'Submitted At': '',
@@ -324,12 +354,25 @@ var MidtsVendorRequestService = (function () {
         requestId: requestId,
         outcome: 'vendor_pricing_request_sent',
         message: 'Vendor pricing request sent',
-        payload: { leadId: leadId, vendorName: vendorName, vendorEmail: vendorEmail },
+        payload: {
+          leadId: leadId,
+          technicalReviewId: request['Technical Review ID'],
+          sourcePackageId: request['Source Package ID'],
+          vendorName: vendorName,
+          vendorEmail: vendorEmail
+        },
         submissionId: leadResult.lead['Submission ID'] || '',
         email: vendorEmail,
         source: 'Vendor Request Service'
       });
-      return { ok: true, leadId: leadId, requestId: requestId, vendorEmail: vendorEmail };
+      return {
+        ok: true,
+        leadId: leadId,
+        requestId: requestId,
+        vendorEmail: vendorEmail,
+        technicalReviewId: request['Technical Review ID'],
+        sourcePackageId: request['Source Package ID']
+      };
     } finally {
       if (lockAcquired) lock.releaseLock();
     }
@@ -464,6 +507,28 @@ var MidtsVendorRequestService = (function () {
       encodeURIComponent(requestId) + '&token=' + encodeURIComponent(rawToken);
   }
 
+  function guardCompleteAssessment_(review) {
+    var required = [
+      'Technical Review ID',
+      'Reviewer',
+      'Reviewer Organisation',
+      'Reviewer Email',
+      'Files And Revisions Reviewed',
+      'Partner Review Package Link',
+      'Partner Assessment Document Link',
+      'Feasibility Status',
+      'Partner Submitted At',
+      'Review Summary',
+      'Recommendation'
+    ];
+    var missing = required.filter(function (header) { return !String(review[header] || '').trim(); });
+    if (missing.length) return { ok: false, message: 'Partner technical assessment is incomplete: ' + missing.join(', ') + '.' };
+    if (String(review['Recommendation'] || '') === 'Qualified' && String(review['Feasibility Status'] || '') !== 'Feasible') {
+      return { ok: false, message: 'Qualified vendor pricing requires a Feasible partner assessment.' };
+    }
+    return { ok: true };
+  }
+
   function hashToken_(value) {
     var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value), Utilities.Charset.UTF_8);
     return bytes.map(function (byte) {
@@ -537,7 +602,7 @@ var MidtsVendorRequestService = (function () {
   }
 
   function escapeHtml_(value) {
-    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function errorMessage_(error) {
