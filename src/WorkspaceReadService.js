@@ -2,12 +2,17 @@ var MidtsWorkspaceReadService = (function () {
   var VENDOR_REQUEST_HEADERS = [
     'Request ID',
     'Lead ID',
+    'Technical Review ID',
     'Quote Reference',
     'Created At',
     'Sent At',
     'Vendor Name',
     'Vendor Email',
     'Vendor Package Link',
+    'Reviewer Organisation',
+    'Files And Revisions Priced',
+    'Source Package ID',
+    'Scope Revision',
     'Request Token Hash',
     'Request Status',
     'Submitted At',
@@ -274,6 +279,14 @@ var MidtsWorkspaceReadService = (function () {
     };
 
     base.technicalReviewId = clean_(review['Technical Review ID']);
+    base.reviewer = clean_(review['Reviewer']);
+    base.reviewerOrganisation = clean_(review['Reviewer Organisation']);
+    base.reviewerEmail = clean_(review['Reviewer Email']);
+    base.filesAndRevisionsReviewed = clean_(review['Files And Revisions Reviewed']);
+    base.partnerReviewPackageLink = clean_(review['Partner Review Package Link']);
+    base.partnerAssessmentDocumentLink = clean_(review['Partner Assessment Document Link']);
+    base.feasibilityStatus = clean_(review['Feasibility Status']);
+    base.partnerSubmittedAt = toIso_(review['Partner Submitted At']);
     base.reviewSummary = clean_(review['Review Summary']);
     base.risks = parseReviewList_(review['Risks']);
     base.clarifications = parseReviewList_(review['Clarifications']);
@@ -308,6 +321,11 @@ var MidtsWorkspaceReadService = (function () {
     base.vendorSafePackageReady = clean_(lead['Vendor Safe Package Ready']);
     base.requestId = request ? clean_(request['Request ID']) : '';
     base.requestStatus = request ? clean_(request['Request Status']) : '';
+    base.technicalReviewId = base.technicalReviewId || (request ? clean_(request['Technical Review ID']) : '');
+    base.reviewerOrganisation = base.reviewerOrganisation || (request ? clean_(request['Reviewer Organisation']) : '');
+    base.filesAndRevisionsPriced = request ? clean_(request['Files And Revisions Priced']) : base.filesAndRevisionsReviewed || '';
+    base.sourcePackageId = request ? clean_(request['Source Package ID']) : base.packageId;
+    base.scopeRevision = request ? clean_(request['Scope Revision']) : '';
     base.readyAt = toIso_(vendorPackage && vendorPackage['Approved At'] || lead['Last Updated At'] || lead['Created At']);
     base.status = clean_(lead['Vendor Pricing Status']) || clean_(lead['Quote Status']) || 'Contact Vendor';
     return base;
