@@ -82,6 +82,12 @@ var MidtsDecisionService = (function () {
     }
 
     var recommendation = String(reviewResult.review['Recommendation'] || '').trim();
+    var evidenceGuard = guardCompletePartnerAssessment_(reviewResult.review);
+    if (evidenceGuard) {
+      evidenceGuard.leadId = lead['Lead ID'];
+      return evidenceGuard;
+    }
+
     var expected = {
       qualified: 'Qualified',
       'needs-more-info': 'Needs More Info',
@@ -97,6 +103,30 @@ var MidtsDecisionService = (function () {
       };
     }
     return null;
+  }
+
+  function guardCompletePartnerAssessment_(review) {
+    var required = {
+      'Reviewer': 'Partner reviewer name is required on the completed assessment.',
+      'Reviewer Organisation': 'Reviewer organisation is required on the completed assessment.',
+      'Files And Revisions Reviewed': 'Files and revisions reviewed are required on the completed assessment.',
+      'Partner Assessment Document Link': 'Partner assessment document link is required on the completed assessment.',
+      'Feasibility Status': 'Feasibility status is required on the completed assessment.',
+      'Recommendation': 'Business recommendation is required on the completed assessment.'
+    };
+    var missing = [];
+    Object.keys(required).forEach(function (header) {
+      if (!String(review[header] || '').trim()) missing.push(required[header]);
+    });
+    if (!String(review['Approved At'] || review['Partner Submitted At'] || '').trim()) {
+      missing.push('Completed/submitted timestamp is required on the completed assessment.');
+    }
+    if (!missing.length) return null;
+    return {
+      ok: false,
+      blocked: true,
+      message: 'Qualification is blocked because the Partner Technical Assessment is incomplete: ' + missing.join(' ')
+    };
   }
 
   function guardExistingDecision_(existing, requestedDecisionKey, requestedDecisionLabel, reviewer) {
