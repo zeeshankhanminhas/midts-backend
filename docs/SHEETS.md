@@ -110,19 +110,28 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 
 ## Technical Reviews
 
+`Technical Reviews` is now the partner Technical Assessment evidence record. Workspace captures the assessment, but identifiers remain backend/audit values.
+
 | Column | Purpose |
 | --- | --- |
 | Technical Review ID | Backend-generated review identifier. |
 | Lead ID | Parent lead identifier. |
 | Technical Intake ID | Step 2 record used for the review. |
 | Created At | Timestamp when review was recorded. |
-| Reviewer | Workspace reviewer. |
+| Reviewer | Partner reviewer name. |
+| Reviewer Organisation | Partner company or reviewer organisation. |
+| Reviewer Email | Partner reviewer email. |
+| Files And Revisions Reviewed | Files/revisions that the partner assessed. |
+| Partner Review Package Link | Drive/package link supplied to the partner for review. |
+| Partner Assessment Document Link | Link to the partner assessment document or returned assessment file. |
+| Feasibility Status | Canonical feasibility: `Feasible`, `Feasible with Assumptions`, `Clarification Required`, `Outside Available Capability`, or `Not Feasible`. |
+| Partner Submitted At | Timestamp when partner assessment was received. |
 | Review Status | Review row status, normally `Completed`. |
-| Review Summary | Technical assessment. |
+| Review Summary | Partner technical assessment summary. |
 | File Review | File/drawing observations as JSON list. |
 | Risks | Risk notes as JSON list. |
 | Clarifications | Clarification notes as JSON list. |
-| Recommendation | `Qualified`, `Needs More Info`, `Nurture`, or `Not Suitable`. |
+| Recommendation | `Qualified`, `Needs More Info`, `Nurture`, or `Not Suitable`. `Qualified` requires `Feasible`. |
 | Approved At | Timestamp when Technical Review was completed. |
 | Last Updated At | Last update timestamp. |
 | Internal Notes | Internal-only notes from the Workspace reviewer. |
@@ -149,10 +158,15 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | --- | --- |
 | Request ID | Backend-generated vendor request identifier. |
 | Lead ID | Parent lead identifier. |
+| Technical Review ID | Partner Technical Assessment record that allowed the request. |
 | Quote Reference | Quote reference, if already created. |
 | Created At / Sent At | Request creation and email sent timestamps. |
 | Vendor Name / Vendor Email | External vendor contact. |
 | Vendor Package Link | Approved vendor-safe package link sent to the vendor. |
+| Reviewer Organisation | Partner organisation carried from the assessment. |
+| Files And Revisions Priced | Files/revisions the vendor is asked to price. |
+| Source Package ID | Vendor Safe Package row used for the request. |
+| Scope Revision | Package hash/revision used for pricing traceability. |
 | Request Token Hash | Hash of the secure vendor pricing token. |
 | Request Status | `Pending Send`, `Sent`, `Submitted`, or `Send Failed`. |
 | Submitted At | Timestamp when vendor pricing was submitted. |
@@ -178,6 +192,23 @@ The `Leads` tab is the operational control panel. It must show where each lead i
 | Quote Revision / Latest Revision / Revision Reason | Pricing revision control. |
 | Notes | Vendor submission notes and assumptions. |
 | Last Updated At | Last update timestamp. |
+
+## Documents
+
+`Documents` stores controlled snapshots. Workspace document routes must render from the backend snapshot status and render data, not URL status overrides. Quote document read responses are client-safe and do not include internal vendor cost or margin objects outside the snapshot render payload.
+
+| Column | Purpose |
+| --- | --- |
+| Document ID | Backend-generated document/snapshot identifier. |
+| Lead ID | Parent lead identifier. |
+| Quote Reference | Quote reference linked to the snapshot. |
+| Document Type | Document family, such as `Quote Snapshot`. |
+| Revision | Snapshot revision. |
+| Source | Creating backend service. |
+| Status | Controlled status, such as `Draft Snapshot`, `Approved`, `PDF Generated`, or `Sent`. |
+| Drive File ID / Drive URL | Generated client-ready document when available. |
+| Snapshot JSON / Snapshot Hash | Controlled document payload and hash. |
+| Created At / Approved At / Approved By / Sent At / Sent To / Last Updated At | Audit timestamps and actors. |
 
 ## Webhook Logs
 
@@ -221,8 +252,9 @@ A lead appears in `/workspace/technical-review` when:
 A lead appears in `/workspace/qualification` when:
 
 1. A completed `Technical Reviews` row exists for the lead.
-2. `Qualification Decision` is blank.
-3. `Human Approval` is not `Approved`.
+2. The completed row contains the required partner assessment evidence fields.
+3. `Qualification Decision` is blank.
+4. `Human Approval` is not `Approved`.
 
 ### Pending Vendor Safe Packages
 
@@ -231,7 +263,7 @@ A lead appears in `/workspace/vendor-safe` when:
 1. `Vendor Safe Package Required` is `Yes`.
 2. `Vendor Safe Package Ready` is not `Yes`.
 3. `Lifecycle Status` is `Vendor Safe Review` or `Vendor Pricing Status` is `Vendor Safe Package Required`.
-4. The latest Technical Review recommendation is `Qualified`.
+4. The latest Technical Review recommendation is `Qualified` and feasibility is `Feasible`.
 5. No latest `Vendor Safe Packages` row is already `Approved for Vendor Pricing`.
 
 ### Pending Vendor Request Setup
@@ -242,7 +274,9 @@ A lead appears in `/workspace/vendor-request` when:
 2. `Lifecycle Status` is `Vendor Pricing`.
 3. `Vendor Pricing Status` or `Next Action` indicates `Contact Vendor` / `Waiting Vendor Price`.
 4. If vendor-safe handling was required, `Vendor Safe Package Ready` is `Yes`.
-5. No open `Vendor Requests` row exists with `Pending Send` or `Sent` for that lead.
+5. A complete partner Technical Assessment exists.
+6. If a vendor-safe package is required, the submitted package link matches the latest approved package.
+7. No open `Vendor Requests` row exists with `Pending Send` or `Sent` for that lead.
 
 ## Launch Rule
 
@@ -250,8 +284,9 @@ A lifecycle pass is not considered complete unless:
 
 1. Step 1 returns `ok: true` and writes `Leads` plus `Webhook Logs`.
 2. Step 2 writes `Technical Intake`, stores selected uploads as Drive links when files are supplied, updates `Leads`, and logs/email-notifies internally.
-3. Technical Review writes `Technical Reviews`, updates `Leads`, and logs `technical_review_success`.
+3. Technical Review writes a complete partner assessment into `Technical Reviews`, updates `Leads`, and logs `technical_review_success`.
 4. Qualification Decision updates `Leads`, sends/logs the correct outcome email, and records the decision outcome in `Webhook Logs`.
 5. Vendor Safe Package writes `Vendor Safe Packages`, updates `Leads`, and logs `vendor_safe_package_success`.
-6. Vendor Request Setup writes `Vendor Requests`, updates `Leads`, sends/logs the vendor pricing email, and logs `vendor_request_setup_success`.
+6. Vendor Request Setup writes `Vendor Requests` with Technical Review and package linkage, updates `Leads`, sends/logs the vendor pricing email, and logs `vendor_request_setup_success`.
 7. Vendor Pricing submission updates `Vendor Requests`, writes `Vendor Pricing`, moves the lead to Margin Review, and logs the vendor pricing submission.
+8. Controlled quote documents render from backend snapshots and do not trust URL status overrides.
