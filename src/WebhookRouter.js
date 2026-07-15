@@ -7,6 +7,7 @@ var MidtsWebhookRouter = (function () {
       var tokenResult = MidtsTokenService.validate(payload);
       if (!tokenResult.ok) return MidtsResponseService.failure(tokenResult.code, tokenResult.message, { requestId: requestId });
       if (isWorkspaceReadPayload_(payload)) return handleWorkspaceRead_(payload, requestId);
+      if (isInvoicePayload_(payload)) return handleInvoice_(payload, requestId);
       if (isProjectCreationPayload_(payload)) return handleProjectCreation_(payload, requestId);
       if (isQuoteAcceptancePayload_(payload)) return handleQuoteAcceptance_(payload, requestId);
       if (isQuoteSendPayload_(payload)) return handleQuoteSend_(payload, requestId);
@@ -51,6 +52,7 @@ var MidtsWebhookRouter = (function () {
     if (action === 'listpendingapprovedquotes' || action === 'listpendingquotesends') return readSuccess_(requestId, MidtsQuoteSendService.listPendingApprovedQuotes());
     if (action === 'listpendingquoteacceptances') return readSuccess_(requestId, MidtsQuoteAcceptanceService.listPendingQuoteAcceptances());
     if (action === 'listpendingprojectcreations') return readSuccess_(requestId, MidtsProjectService.listPendingProjectCreations());
+    if (action === 'listpendinginvoices' || action === 'listpendinginvoicecreations') return readSuccess_(requestId, MidtsInvoiceService.listPendingInvoices());
     if (action === 'getquotedocument' || action === 'getquotebyid' || action === 'getquotebyleadid') return readSuccess_(requestId, MidtsDocumentService.getQuoteDocument(payload));
     return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported: ' + String(payload.action || ''), { requestId:requestId });
   }
@@ -103,9 +105,13 @@ var MidtsWebhookRouter = (function () {
     var result = MidtsProjectService.createProjectFromAcceptedQuote(payload.leadId || payload.lead_id, payload.creator || payload.reviewer || payload.actor || 'MIDTS Project Control');
     return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:result.alreadyCreated ? 'Project already exists for this accepted quote.' : 'Project created from accepted quote.' }, result)) : MidtsResponseService.failure(result.code || 'PROJECT_CREATION_FAILED', result.message, { requestId:requestId });
   }
+  function handleInvoice_(payload, requestId) {
+    var result = MidtsInvoiceService.createInvoiceFromProject(payload);
+    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:result.alreadyCreated ? 'Invoice already exists for this project.' : 'Invoice record created from active project.' }, result)) : MidtsResponseService.failure(result.code || 'INVOICE_CREATION_FAILED', result.message, { requestId:requestId });
+  }
 
   function parsePostEvent(e) { if (!e) return {}; if (e.postData && e.postData.contents) { var c=e.postData.contents; var t=String(e.postData.type || '').toLowerCase(); if (t.indexOf('application/json') !== -1 || looksLikeJson(c)) return JSON.parse(c); return parseUrlEncoded(c); } return Object.assign({}, e.parameter || {}); }
-  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','listpendingapprovedquotes','listpendingquotesends','listpendingquoteacceptances','listpendingprojectcreations','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
+  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','listpendingapprovedquotes','listpendingquotesends','listpendingquoteacceptances','listpendingprojectcreations','listpendinginvoices','listpendinginvoicecreations','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
   function isStep2Payload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='step2' || s==='technicalintake'; }
   function isTechnicalReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='technicalreview' || normalizeCompact_(p.action)==='recordtechnicalreview'; }
   function isQualificationDecisionPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='qualificationdecision' || normalizeCompact_(p.action)==='recordqualificationdecision'; }
@@ -117,6 +123,7 @@ var MidtsWebhookRouter = (function () {
   function isQuoteSendPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='quotesend' || s==='sendapprovedquote' || normalizeCompact_(p.action)==='sendapprovedquote'; }
   function isQuoteAcceptancePayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='quoteacceptance' || s==='clientquoteacceptance' || normalizeCompact_(p.action)==='acceptquote'; }
   function isProjectCreationPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='projectcreation' || normalizeCompact_(p.action)==='createprojectfromacceptedquote'; }
+  function isInvoicePayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='invoicecreation' || s==='invoice' || normalizeCompact_(p.action)==='createinvoicefromproject'; }
   function normalizeCompact_(v) { return String(v || '').trim().toLowerCase().replace(/_/g,'').replace(/-/g,'').replace(/\s+/g,''); }
   function looksLikeJson(v) { var t=String(v || '').trim(); return t.charAt(0)==='{' || t.charAt(0)==='['; }
   function parseUrlEncoded(v) { var r={}; String(v || '').split('&').forEach(function(pair){ if(!pair)return; var p=pair.split('='); r[decodeURIComponent((p[0]||'').replace(/\+/g,' '))]=decodeURIComponent((p.slice(1).join('=')||'').replace(/\+/g,' ')); }); return r; }
