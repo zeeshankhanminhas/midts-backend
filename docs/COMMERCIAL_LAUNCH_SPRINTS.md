@@ -46,22 +46,9 @@ Goal: resolve the Vendor Safe Package document-engine mismatch.
 
 Status: implemented on `sprint/6-document-suite-vsp-alignment`.
 
-Implementation notes:
-
-- `docs/DOCUMENT_OWNERSHIP.md` defines the Document Suite boundary.
-- Vendor Safe Package remains vendor working material in Drive/Google Docs.
-- Quote, proposal, and invoice client/commercial documents remain owned by the protected Workspace Document Suite.
-- No public document route, new app, or replacement document engine was introduced.
-
 ## Sprint 7 - Invoice Minimum Path
 
 Goal: create the minimum controlled invoice workflow needed for commercial billing.
-
-Minimum acceptance:
-
-- Active/accepted project can generate an invoice record.
-- Invoice amount, currency, due date, status, and source quote are recorded.
-- Invoice route/document follows Document Suite rules if client-facing.
 
 Status: implemented on `sprint/7-invoice-minimum-path`, pending Apps Script deployment and live verification.
 
@@ -72,14 +59,6 @@ Implementation notes:
 - The router accepts `action=listPendingInvoices`, `formStage=workspaceRead` for queue reads.
 - The router accepts `action=createInvoiceFromProject`, `formStage=invoiceCreation` for the selected Workspace action.
 - Successful creation writes `Invoices`, updates lead next action to `Issue invoice`, and records `invoice_created` in `Webhook Logs`.
-- The previous `issueInvoice()` function remains available for the later delivery/handover-issued invoice path.
-
-Deployment verification:
-
-- Deploy Apps Script after Sprint 7 backend changes.
-- Confirm `listPendingInvoices` returns active projects with approved pricing and no invoice.
-- Create one invoice from Workspace.
-- Confirm `Invoices`, `Leads`, and `Webhook Logs` update consistently.
 
 ## Sprint 8 - Full Live Lifecycle Verification
 
@@ -90,3 +69,18 @@ Minimum acceptance:
 - Lead -> Step 2 files -> Technical Review -> Qualification -> VSP -> Vendor Request -> Vendor Pricing -> Margin Review -> Quote Builder -> Quote PDF -> Send Quote -> Accept Quote -> Project -> Invoice works live.
 - Sheets, Drive, Webhook Logs, Email Logs, and Workspace states match at each step.
 - Remaining launch blockers are either fixed or explicitly accepted.
+
+Status: verification checklist implemented on `sprint/8-full-live-lifecycle-verification`; live production run pending Apps Script and Cloud Run gateway deployment from `main`.
+
+Implementation notes:
+
+- `docs/LAUNCH_VERIFICATION_CHECKLIST.md` defines the production test sequence and pass criteria.
+- The checklist covers Workspace queues, Sheets, Drive, email, Webhook Logs, and Document Suite ownership.
+- Sprint 8 does not add a new architecture or public document exposure.
+
+Deployment verification:
+
+- Push/deploy backend Apps Script from `main`.
+- Redeploy Cloud Run gateway with current Apps Script Web App URL and token configuration.
+- Confirm Vercel `NEXT_PUBLIC_MIDTS_GATEWAY_URL` points to Cloud Run.
+- Execute the full launch checklist with one real test lead.
