@@ -132,6 +132,23 @@ Minimum acceptance:
 - Lead moves to `Project Active`.
 - Drive/project folder and source document link are recorded.
 
+Status: implemented on `sprint/5-project-creation`, pending Apps Script deployment and live verification.
+
+Implementation notes:
+
+- `MidtsProjectService.listPendingProjectCreations()` exposes accepted quotes that do not already have a project.
+- `MidtsProjectService.createProjectFromAcceptedQuote()` remains the project creation operation and now returns project/folder/source-document context for Workspace.
+- The router accepts `action=listPendingProjectCreations`, `formStage=workspaceRead` for queue reads.
+- The router accepts `action=createProjectFromAcceptedQuote`, `formStage=projectCreation` for the selected Workspace action.
+- Successful creation writes `Projects`, updates the lead to `Project Active`, records the Drive folder, source quote document ID, and `Webhook Logs` entry.
+
+Deployment verification:
+
+- Deploy Apps Script after Sprint 5 backend changes.
+- Confirm `listPendingProjectCreations` returns accepted quotes without existing project rows.
+- Create one project from Workspace.
+- Confirm `Projects`, `Leads`, Drive folder, source quote document ID, and `Webhook Logs` update consistently.
+
 ## Sprint 6 - Document Suite / VSP Alignment
 
 Goal: resolve the Vendor Safe Package document-engine mismatch.
