@@ -77,7 +77,7 @@ var MidtsDecisionService = (function () {
         ok: false,
         blocked: true,
         leadId: lead['Lead ID'],
-        message: 'A completed Technical Review is required before this qualification decision.'
+        message: 'A completed Partner Technical Assessment is required before this qualification decision.'
       };
     }
 
@@ -99,7 +99,7 @@ var MidtsDecisionService = (function () {
         ok: false,
         blocked: true,
         leadId: lead['Lead ID'],
-        message: 'Technical Review recommendation is ' + (recommendation || 'blank') + '; it must be ' + expected + ' for this decision.'
+        message: 'Partner Technical Assessment recommendation is ' + (recommendation || 'blank') + '; it must be ' + expected + ' for this decision.'
       };
     }
     return null;
@@ -107,9 +107,9 @@ var MidtsDecisionService = (function () {
 
   function guardCompletePartnerAssessment_(review) {
     var required = {
-      'Reviewer': 'Partner reviewer name is required on the completed assessment.',
-      'Reviewer Organisation': 'Reviewer organisation is required on the completed assessment.',
-      'Files And Revisions Reviewed': 'Files and revisions reviewed are required on the completed assessment.',
+      'Reviewer': 'Partner assessor name is required on the completed assessment.',
+      'Reviewer Organisation': 'Partner organisation is required on the completed assessment.',
+      'Files And Revisions Reviewed': 'Files and revisions assessed are required on the completed assessment.',
       'Partner Assessment Document Link': 'Partner assessment document link is required on the completed assessment.',
       'Feasibility Status': 'Feasibility status is required on the completed assessment.',
       'Recommendation': 'Business recommendation is required on the completed assessment.'
@@ -333,7 +333,7 @@ var MidtsDecisionService = (function () {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/\"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
 
