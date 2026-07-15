@@ -4,7 +4,8 @@ var MidtsTechnicalReviewService = (function () {
     'Feasible with Assumptions',
     'Clarification Required',
     'Outside Available Capability',
-    'Not Feasible'
+    'Not Feasible',
+    'Alternative Approach'
   ];
 
   var BUSINESS_RECOMMENDATION_VALUES = [
@@ -65,18 +66,24 @@ var MidtsTechnicalReviewService = (function () {
 
     var leadResult = MidtsSheetService.findLeadById(leadId);
     if (!leadResult) return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
-    if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Pending Review') {
+
+    var reviewRequestId = clean_(input.reviewRequestId || input.review_request_id || input.vendorRequestId || input.vendor_request_id);
+    var bridgeAssessment = Boolean(reviewRequestId || clean_(input.sourcePackageId || input.source_package_id || input.vendorSafePackageId || input.vendor_safe_package_id));
+    var lifecycle = clean_(leadResult.lead['Lifecycle Status']);
+    if (!bridgeAssessment && lifecycle !== 'Pending Review') {
       return { ok: false, code: 'LEAD_NOT_READY_FOR_TECHNICAL_REVIEW', message: 'Lead must be Pending Review before a partner technical assessment can be recorded.' };
+    }
+    if (bridgeAssessment && lifecycle !== 'Vendor Pricing' && lifecycle !== 'Info Required' && lifecycle !== 'Commercial Review') {
+      return { ok: false, code: 'LEAD_NOT_READY_FOR_PARTNER_ASSESSMENT', message: 'Lead must be in the vendor request or partner assessment flow before this assessment can be recorded.' };
     }
 
     var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
     if (!intakeResult) return { ok: false, code: 'TECHNICAL_INTAKE_NOT_FOUND', message: 'Technical Intake is required before partner technical assessment.' };
 
     var reviewerType = clean_(input.reviewerType || input.reviewer_type || 'Approved Outsourced Partner');
-    var reviewer = clean_(input.reviewer || input.partnerReviewer || input.partner_reviewer);
-    var reviewerOrganisation = clean_(input.reviewerOrganisation || input.reviewer_organisation || input.partnerOrganisation || input.partner_organisation);
-    var reviewerEmail = clean_(input.reviewerEmail || input.reviewer_email || input.partnerReviewerEmail || input.partner_reviewer_email);
-    var reviewRequestId = clean_(input.reviewRequestId || input.review_request_id);
+    var reviewer = clean_(input.reviewer || input.partnerReviewer || input.partner_reviewer || input.assessorName || input.assessor_name);
+    var reviewerOrganisation = clean_(input.reviewerOrganisation || input.reviewer_organisation || input.partnerOrganisation || input.partner_organisation || input.partnerName || input.partner_name);
+    var reviewerEmail = clean_(input.reviewerEmail || input.reviewer_email || input.partnerReviewerEmail || input.partner_reviewer_email || input.partnerEmail || input.partner_email);
     var sourcePackageId = clean_(input.sourcePackageId || input.source_package_id || input.vendorSafePackageId || input.vendor_safe_package_id);
     var assessmentScope = clean_(input.assessmentScope || input.assessment_scope || input.reviewScope || input.review_scope);
     var filesAndRevisionsReviewed = clean_(input.filesAndRevisionsReviewed || input.files_and_revisions_reviewed || input.fileReview || input.file_review);
@@ -85,22 +92,22 @@ var MidtsTechnicalReviewService = (function () {
     var partnerReviewPackageLink = clean_(input.partnerReviewPackageLink || input.partner_review_package_link || input.reviewPackageLink || input.review_package_link);
     var partnerAssessmentDocumentLink = clean_(input.partnerAssessmentDocumentLink || input.partner_assessment_document_link || input.assessmentDocumentLink || input.assessment_document_link);
     var feasibilityStatus = normalizeFeasibility_(input.feasibilityStatus || input.feasibility_status || input.technicalOutcome || input.technical_outcome);
-    var proposedProcess = clean_(input.proposedProcess || input.proposed_process);
+    var proposedProcess = clean_(input.proposedProcess || input.proposed_process || input.recommendedApproach || input.recommended_approach);
     var machineAxisRequirement = clean_(input.machineAxisRequirement || input.machine_axis_requirement);
     var criticalFeatures = normalizeList_(input.criticalFeatures || input.critical_features);
-    var manufacturingRisks = normalizeList_(input.manufacturingRisks || input.manufacturing_risks || input.risks);
+    var manufacturingRisks = normalizeList_(input.manufacturingRisks || input.manufacturing_risks || input.risks || input.engineeringRisks || input.engineering_risks);
     var inspectionRequirements = normalizeList_(input.inspectionRequirements || input.inspection_requirements);
     var assumptions = normalizeList_(input.assumptions);
-    var clarificationsRequired = normalizeList_(input.clarificationsRequired || input.clarifications_required || input.clarifications);
+    var clarificationsRequired = normalizeList_(input.clarificationsRequired || input.clarifications_required || input.clarifications || input.questionsForClient || input.questions_for_client || input.missingInformation || input.missing_information);
     var estimatedEngineeringHours = clean_(input.estimatedEngineeringHours || input.estimated_engineering_hours);
-    var estimatedLeadTime = clean_(input.estimatedLeadTime || input.estimated_lead_time);
-    var deliverables = normalizeList_(input.deliverables);
-    var partnerDeclaration = clean_(input.partnerDeclaration || input.partner_declaration);
+    var estimatedLeadTime = clean_(input.estimatedLeadTime || input.estimated_lead_time || input.engineeringLeadTime || input.engineering_lead_time);
+    var deliverables = normalizeList_(input.deliverables || input.recommendedDeliverables || input.recommended_deliverables);
+    var partnerDeclaration = clean_(input.partnerDeclaration || input.partner_declaration || input.confirmation);
     var reviewValidUntil = parseOptionalDate_(input.reviewValidUntil || input.review_valid_until);
-    var partnerSubmittedAt = parseSubmittedAt_(input.partnerSubmittedAt || input.partner_submitted_at || input.assessmentSubmittedAt || input.assessment_submitted_at);
-    var summary = clean_(input.reviewSummary || input.review_summary || input.technicalAssessmentSummary || input.technical_assessment_summary);
-    var internalNotes = clean_(input.internalNotes || input.internal_notes);
-    var businessRecommendation = normalizeRecommendation_(input.recommendation || input.businessRecommendation || input.business_recommendation);
+    var partnerSubmittedAt = parseSubmittedAt_(input.partnerSubmittedAt || input.partner_submitted_at || input.assessmentSubmittedAt || input.assessment_submitted_at || new Date());
+    var summary = clean_(input.reviewSummary || input.review_summary || input.technicalAssessmentSummary || input.technical_assessment_summary || input.technicalSummary || input.technical_summary);
+    var internalNotes = clean_(input.internalNotes || input.internal_notes || input.internalPartnerNotes || input.internal_partner_notes);
+    var businessRecommendation = normalizeRecommendation_(input.recommendation || input.businessRecommendation || input.business_recommendation || recommendationForFeasibility_(feasibilityStatus));
     var risks = normalizeList_(input.risks || manufacturingRisks);
     var clarifications = normalizeList_(input.clarifications || clarificationsRequired);
     var fileReview = normalizeList_(input.fileReview || input.file_review || filesAndRevisionsReviewed);
@@ -172,7 +179,7 @@ var MidtsTechnicalReviewService = (function () {
       now
     ]);
 
-    var leadUpdate = MidtsSheetService.updateLeadById(leadId, {
+    var updates = bridgeAssessment ? buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary) : {
       'Status': 'Partner Technical Assessment Complete',
       'Lifecycle Status': 'Qualification Decision',
       'Review Status': 'Partner Technical Assessment Complete',
@@ -181,7 +188,8 @@ var MidtsTechnicalReviewService = (function () {
       'Next Action': 'Record qualification decision',
       'Next Action Due': now,
       'Last Updated At': now
-    });
+    };
+    var leadUpdate = MidtsSheetService.updateLeadById(leadId, updates);
 
     return {
       ok: true,
@@ -192,6 +200,8 @@ var MidtsTechnicalReviewService = (function () {
       reviewer: reviewer,
       reviewerOrganisation: reviewerOrganisation,
       reviewerEmail: reviewerEmail,
+      reviewRequestId: reviewRequestId,
+      sourcePackageId: sourcePackageId,
       filesAndRevisionsReviewed: filesAndRevisionsReviewed,
       partnerReviewPackageLink: partnerReviewPackageLink,
       partnerAssessmentDocumentLink: partnerAssessmentDocumentLink,
@@ -199,8 +209,51 @@ var MidtsTechnicalReviewService = (function () {
       technicalOutcome: feasibilityStatus,
       partnerSubmittedAt: formatDateValue_(partnerSubmittedAt),
       recommendation: businessRecommendation,
+      lifecycleStatus: leadUpdate.lead['Lifecycle Status'] || '',
+      vendorPricingStatus: leadUpdate.lead['Vendor Pricing Status'] || '',
       nextAction: leadUpdate.lead['Next Action']
     };
+  }
+
+  function buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary) {
+    var base = {
+      'Status': 'Partner Technical Assessment Complete',
+      'Review Status': 'Partner Technical Assessment Complete',
+      'Reviewer': reviewer,
+      'Review Notes': summary,
+      'Last Updated At': now
+    };
+    if (feasibilityStatus === 'Feasible' || feasibilityStatus === 'Feasible with Assumptions') {
+      return Object.assign(base, {
+        'Lifecycle Status': 'Vendor Pricing',
+        'Next Action': 'Submit vendor pricing',
+        'Next Action Due': now,
+        'Vendor Pricing Required': 'Yes',
+        'Vendor Pricing Status': 'Ready for Pricing'
+      });
+    }
+    if (feasibilityStatus === 'Clarification Required') {
+      return Object.assign(base, {
+        'Lifecycle Status': 'Info Required',
+        'Next Action': 'Request clarification from client',
+        'Next Action Due': now,
+        'Vendor Pricing Status': 'Assessment Clarification Required'
+      });
+    }
+    if (feasibilityStatus === 'Alternative Approach') {
+      return Object.assign(base, {
+        'Lifecycle Status': 'Commercial Review',
+        'Next Action': 'Review partner alternative approach with client',
+        'Next Action Due': now,
+        'Vendor Pricing Status': 'Alternative Proposed'
+      });
+    }
+    return Object.assign(base, {
+      'Lifecycle Status': 'Partner Decision Required',
+      'Next Action': 'Select another partner, propose alternative, or close enquiry',
+      'Next Action Due': now,
+      'Vendor Pricing Status': 'Not Feasible'
+    });
   }
 
   function validateAssessment_(assessment) {
@@ -288,6 +341,14 @@ var MidtsTechnicalReviewService = (function () {
     if (normalized === 'clarification required' || normalized === 'needs clarification' || normalized === 'clarifications required') return 'Clarification Required';
     if (normalized === 'outside available capability' || normalized === 'outside capability' || normalized === 'not in capability') return 'Outside Available Capability';
     if (normalized === 'not feasible' || normalized === 'infeasible' || normalized === 'no not feasible') return 'Not Feasible';
+    if (normalized === 'alternative approach' || normalized === 'alternative proposed' || normalized === 'propose alternative') return 'Alternative Approach';
+    return '';
+  }
+
+  function recommendationForFeasibility_(feasibilityStatus) {
+    if (feasibilityStatus === 'Feasible' || feasibilityStatus === 'Feasible with Assumptions') return 'Qualified';
+    if (feasibilityStatus === 'Clarification Required' || feasibilityStatus === 'Alternative Approach') return 'Needs More Info';
+    if (feasibilityStatus === 'Outside Available Capability' || feasibilityStatus === 'Not Feasible') return 'Not Suitable';
     return '';
   }
 
@@ -314,7 +375,7 @@ var MidtsTechnicalReviewService = (function () {
   function parseSubmittedAt_(value) {
     var text = clean_(value);
     if (!text) return null;
-    var date = new Date(text);
+    var date = value instanceof Date ? value : new Date(text);
     return String(date) === 'Invalid Date' ? null : date;
   }
 
