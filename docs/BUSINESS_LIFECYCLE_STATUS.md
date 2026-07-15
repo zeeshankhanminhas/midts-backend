@@ -1,7 +1,7 @@
 # MIDTS Business Lifecycle Status
 
 Last reviewed: 2026-07-15
-Branch reviewed: `sprint/4-client-quote-acceptance`
+Branch reviewed: `sprint/5-project-creation`
 Repository role: backend gateway, Apps Script services, Sheets, Drive, document generation, and email transport.
 
 ## Architecture Check
@@ -33,6 +33,7 @@ No parallel backend path or replacement architecture was introduced.
 | Quote Draft Review / Controlled Quote Document | Sprint 2 hardened | Quote approval signs the protected Workspace quote document URL for PDF rendering and reports renderer/configuration failures clearly. |
 | Send Approved Quote | Sprint 3 implemented | `MidtsQuoteSendService` lists generated approved PDFs and sends the selected quote through existing Apps Script email/Drive/Sheets services. |
 | Client Quote Acceptance | Sprint 4 implemented | `MidtsQuoteAcceptanceService` lists sent quotes, records acceptance, updates the lead to project-creation readiness, and writes the `Quote Acceptances` audit sheet. |
+| Project Creation | Sprint 5 implemented | `MidtsProjectService` lists accepted quotes without projects and creates project rows from the selected accepted quote through the existing router/gateway pattern. |
 | Workspace Authentication | Sprint 1 frontend implementation | Production Workspace auth is implemented in the frontend branch. No Apps Script/backend service change is required for Sprint 1. |
 
 ## Not Yet Complete / Needs Verification
@@ -42,15 +43,15 @@ No parallel backend path or replacement architecture was introduced.
 | Quote PDF generation and release | Sprint 2 pending live verification | Apps Script needs deployment with `QUOTE_RENDER_SECRET`, `PDF_RENDERER_URL`, and `PDF_RENDERER_TOKEN`. Then quote approval must be verified against Drive, `Documents`, `Leads`, and `Webhook Logs`. |
 | Send approved quote | Sprint 3 pending live verification | Apps Script needs deployment. Then one approved quote must be sent live and verified against client email receipt, `Documents`, `Leads`, `Email Logs`, and `Webhook Logs`. |
 | Client quote acceptance | Sprint 4 pending live verification | Apps Script needs deployment. Then one sent quote must be accepted live and verified against `Quote Acceptances`, `Leads`, and `Webhook Logs`. |
-| Project Creation | Not complete | Backend support exists, but no completed Workspace/gateway handoff has been verified. |
+| Project Creation | Sprint 5 pending live verification | Apps Script needs deployment. Then one accepted quote must be converted into an active project and verified against `Projects`, `Leads`, Drive folder, source quote document ID, and `Webhook Logs`. |
 | Proposal Builder | Not complete | No completed Workspace-controlled proposal builder slice has been verified. |
 | Invoice minimum path | Not complete | Invoice schema exists, but no completed billing workflow has been verified. |
 | Document Suite / VSP alignment | Not complete | Quote uses the Document Suite path. Vendor Safe Package still generates Google Docs working files unless formally accepted as an exception. |
 
 ## Commercial Launch Sprint Plan
 
-See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 4 deployment verification.
+See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 5 deployment verification.
 
 ## Conflict Check
 
-Sprint 4 preserves the existing gateway/Apps Script architecture. It adds only the sent-quote acceptance read/action path and reuses existing lead, document, sheet, and webhook logging services.
+Sprint 5 preserves the existing gateway/Apps Script architecture. It adds only the accepted-quote project creation read/action path and reuses existing lead, project, Drive, document, sheet, and webhook logging services.
