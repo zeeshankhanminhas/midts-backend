@@ -2,9 +2,11 @@ var MidtsDocumentService = (function () {
   var SHEET_NAME = 'Documents';
   var HEADERS = [
     'Document ID', 'Lead ID', 'Quote Reference', 'Document Type', 'Revision',
-    'Source', 'Status', 'Drive File ID', 'Drive URL', 'Snapshot JSON',
-    'Snapshot Hash', 'Created At', 'Approved At', 'Approved By', 'Sent At',
-    'Sent To', 'Last Updated At'
+    'Source', 'Status', 'Purpose of Issue', 'Prepared By', 'Technically Reviewed By',
+    'Approved For Issue By', 'Effective Date', 'Confidentiality Classification',
+    'Drive File ID', 'Drive URL', 'Snapshot JSON', 'Snapshot Hash',
+    'Revision History JSON', 'System Events JSON', 'Created At', 'Approved At',
+    'Approved By', 'Issued At', 'Issued To', 'Last Updated At'
   ];
 
   function createQuoteSnapshot(lead, pricing) {
@@ -12,6 +14,7 @@ var MidtsDocumentService = (function () {
     var quoteReference = String(lead['Quote Reference'] || pricing['Quote Reference'] || '').trim();
     if (!quoteReference) throw new Error('Quote reference is required to create a quote snapshot.');
 
+    supersedeIssuedQuoteSnapshots_(lead['Lead ID'], quoteReference, now);
     var snapshot = buildQuoteSnapshot_(lead, pricing, now);
     var snapshotJson = JSON.stringify(snapshot);
     var documentId = 'DOC-QT-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
@@ -19,19 +22,27 @@ var MidtsDocumentService = (function () {
       'Document ID': documentId,
       'Lead ID': lead['Lead ID'] || '',
       'Quote Reference': quoteReference,
-      'Document Type': 'Quote Snapshot',
+      'Document Type': 'Controlled Quotation',
       'Revision': snapshot.revision,
       'Source': 'MIDTS Backend',
-      'Status': 'Draft Snapshot',
+      'Status': 'Draft',
+      'Purpose of Issue': 'For Review',
+      'Prepared By': snapshot.documentControl.preparedBy,
+      'Technically Reviewed By': '',
+      'Approved For Issue By': '',
+      'Effective Date': '',
+      'Confidentiality Classification': snapshot.documentControl.confidentialityClassification,
       'Drive File ID': '',
       'Drive URL': '',
       'Snapshot JSON': snapshotJson,
       'Snapshot Hash': hash_(snapshotJson),
+      'Revision History JSON': JSON.stringify(snapshot.revisionHistory || []),
+      'System Events JSON': JSON.stringify([{ event: 'Snapshot Created', at: now.toISOString() }]),
       'Created At': now,
       'Approved At': '',
       'Approved By': '',
-      'Sent At': '',
-      'Sent To': '',
+      'Issued At': '',
+      'Issued To': '',
       'Last Updated At': now
     });
     return { documentId: documentId, snapshot: snapshot };
@@ -60,15 +71,25 @@ var MidtsDocumentService = (function () {
         quoteReference: String(record['Quote Reference'] || ''),
         documentType: String(record['Document Type'] || ''),
         revision: String(record['Revision'] || ''),
-        status: String(record['Status'] || ''),
+        status: canonicalStatus_(record['Status']),
+        purposeOfIssue: String(record['Purpose of Issue'] || ''),
+        preparedBy: String(record['Prepared By'] || ''),
+        technicallyReviewedBy: String(record['Technically Reviewed By'] || ''),
+        approvedForIssueBy: String(record['Approved For Issue By'] || ''),
+        effectiveDate: formatDateValue_(record['Effective Date']),
+        confidentialityClassification: String(record['Confidentiality Classification'] || ''),
         driveFileId: String(record['Drive File ID'] || ''),
         driveUrl: String(record['Drive URL'] || ''),
         createdAt: formatDateValue_(record['Created At']),
         approvedAt: formatDateValue_(record['Approved At']),
         approvedBy: String(record['Approved By'] || ''),
-        sentAt: formatDateValue_(record['Sent At']),
-        sentTo: String(record['Sent To'] || ''),
+        issuedAt: formatDateValue_(record['Issued At'] || record['Sent At']),
+        issuedTo: String(record['Issued To'] || record['Sent To'] || ''),
+        sentAt: formatDateValue_(record['Issued At'] || record['Sent At']),
+        sentTo: String(record['Issued To'] || record['Sent To'] || ''),
         lastUpdatedAt: formatDateValue_(record['Last Updated At']),
+        revisionHistory: parseArrayJson_(record['Revision History JSON']),
+        systemEvents: parseArrayJson_(record['System Events JSON']),
         snapshot: snapshot,
         renderData: snapshot.renderData || null
       }
@@ -79,24 +100,27 @@ var MidtsDocumentService = (function () {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
     if (!document) return { ok: false, message: 'No quote snapshot exists for this lead and quote reference.' };
 
-    var status = String(document.record['Status'] || '');
-    if (status === 'Approved' || status === 'PDF Generated' || status === 'Sent') {
+    var status = canonicalStatus_(document.record['Status']);
+    if (status === 'Approved' || status === 'Issued') {
       return { ok: true, alreadyApproved: true, documentId: document.record['Document ID'] };
     }
 
     var now = new Date();
     updateDocument_(document, {
       'Status': 'Approved',
+      'Purpose of Issue': 'For Approval',
       'Approved At': now,
-      'Approved By': approver || 'Email Approval',
+      'Approved By': approver || 'Workspace Quote Reviewer',
+      'Approved For Issue By': approver || 'Workspace Quote Reviewer',
       'Last Updated At': now
     });
+    appendSystemEvent_(document, 'Approved', now);
     return { ok: true, documentId: document.record['Document ID'] };
   }
 
   function getApprovedQuoteSnapshot(leadId, quoteReference) {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
-    if (!document || String(document.record['Status'] || '') !== 'Approved') return null;
+    if (!document || canonicalStatus_(document.record['Status']) !== 'Approved') return null;
     return document;
   }
 
@@ -104,8 +128,8 @@ var MidtsDocumentService = (function () {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
     if (!document) return { ok: false, message: 'Quote snapshot not found.' };
 
-    var status = String(document.record['Status'] || '');
-    if (status === 'PDF Generated' || status === 'Sent') {
+    var status = canonicalStatus_(document.record['Status']);
+    if ((status === 'Approved' || status === 'Issued') && String(document.record['Drive File ID'] || '').trim()) {
       return {
         ok: true,
         alreadyAttached: true,
@@ -119,31 +143,35 @@ var MidtsDocumentService = (function () {
     }
     if (!driveFileId || !driveUrl) return { ok: false, message: 'PDF Drive file details are required.' };
 
+    var now = new Date();
     updateDocument_(document, {
-      'Status': 'PDF Generated',
       'Drive File ID': driveFileId,
       'Drive URL': driveUrl,
-      'Last Updated At': new Date()
+      'Last Updated At': now
     });
+    appendSystemEvent_(document, 'PDF Generated', now);
     return { ok: true, documentId: document.record['Document ID'], driveFileId: driveFileId, driveUrl: driveUrl };
   }
 
   function getClientReadyQuoteSnapshot(leadId, quoteReference) {
     var document = findLatestQuoteSnapshot_(leadId, quoteReference);
-    var status = document && String(document.record['Status'] || '');
-    if (!document || (status !== 'PDF Generated' && status !== 'Sent') || !String(document.record['Drive File ID'] || '').trim()) return null;
+    var status = document && canonicalStatus_(document.record['Status']);
+    if (!document || (status !== 'Approved' && status !== 'Issued') || !String(document.record['Drive File ID'] || '').trim()) return null;
     return document;
   }
 
   function markQuoteSnapshotSent(leadId, quoteReference, recipient) {
     var document = getClientReadyQuoteSnapshot(leadId, quoteReference);
     if (!document) return { ok: false, message: 'Generated quote PDF not found.' };
+    var now = new Date();
     updateDocument_(document, {
-      'Status': 'Sent',
-      'Sent At': new Date(),
-      'Sent To': recipient || '',
-      'Last Updated At': new Date()
+      'Status': 'Issued',
+      'Purpose of Issue': 'For Quotation',
+      'Issued At': now,
+      'Issued To': recipient || '',
+      'Last Updated At': now
     });
+    appendSystemEvent_(document, 'Issued', now);
     return { ok: true, documentId: document.record['Document ID'] };
   }
 
@@ -154,19 +182,23 @@ var MidtsDocumentService = (function () {
 
   function buildQuoteSnapshot_(lead, pricing, now) {
     var renderData = MidtsDocumentAdapterService.toQuoteData(lead, {}, pricing, {
-      status: 'draft',
+      status: 'Draft',
       issuedAt: now,
-      revision: String(pricing['Quote Revision'] || '1')
+      revision: String(pricing['Quote Revision'] || '1'),
+      purposeOfIssue: 'For Review'
     });
 
     return {
-      schemaVersion: '1.1',
-      documentType: 'quote',
+      schemaVersion: '2.0',
+      documentType: 'controlledQuotation',
       quoteReference: renderData.reference,
       revision: renderData.revision,
       issuedAt: Utilities.formatDate(now, 'Europe/London', 'yyyy-MM-dd'),
       validUntil: renderData.validUntil,
       documentStatus: renderData.status,
+      purposeOfIssue: renderData.purposeOfIssue,
+      documentControl: renderData.documentControl,
+      revisionHistory: [{ revision: renderData.revision, date: Utilities.formatDate(now, 'Europe/London', 'yyyy-MM-dd'), description: 'Initial controlled quotation snapshot', preparedBy: renderData.preparedBy, approvedBy: '' }],
       client: {
         name: String(lead['Full Name'] || ''),
         company: String(lead['Company'] || '')
@@ -193,6 +225,23 @@ var MidtsDocumentService = (function () {
     };
   }
 
+  function supersedeIssuedQuoteSnapshots_(leadId, quoteReference, now) {
+    var sheet = getSheet_();
+    var values = sheet.getDataRange().getValues();
+    if (values.length < 2) return;
+    var headers = headerMap_(values[0]);
+    for (var i = 1; i < values.length; i += 1) {
+      var matchesLead = String(values[i][headers['Lead ID'] - 1]) === String(leadId || '');
+      var matchesReference = String(values[i][headers['Quote Reference'] - 1]) === String(quoteReference || '');
+      var matchesType = String(values[i][headers['Document Type'] - 1]).indexOf('Quote') !== -1;
+      var status = canonicalStatus_(values[i][headers['Status'] - 1]);
+      if (matchesLead && matchesReference && matchesType && status === 'Issued') {
+        sheet.getRange(i + 1, headers['Status']).setValue('Superseded');
+        if (headers['Last Updated At']) sheet.getRange(i + 1, headers['Last Updated At']).setValue(now);
+      }
+    }
+  }
+
   function findQuoteSnapshotByDocumentId_(documentId, leadId) {
     var sheet = getSheet_();
     var values = sheet.getDataRange().getValues();
@@ -201,7 +250,7 @@ var MidtsDocumentService = (function () {
     for (var i = values.length - 1; i >= 1; i -= 1) {
       var matchesDocument = String(values[i][headers['Document ID'] - 1]) === String(documentId);
       var matchesLead = !leadId || String(values[i][headers['Lead ID'] - 1]) === String(leadId);
-      var matchesType = String(values[i][headers['Document Type'] - 1]) === 'Quote Snapshot';
+      var matchesType = String(values[i][headers['Document Type'] - 1]).indexOf('Quote') !== -1;
       if (matchesDocument && matchesLead && matchesType) return rowResult_(sheet, i + 1, headers, values[i]);
     }
     return null;
@@ -216,7 +265,7 @@ var MidtsDocumentService = (function () {
     for (var i = 1; i < values.length; i += 1) {
       var matchesLead = String(values[i][headers['Lead ID'] - 1]) === String(leadId);
       var matchesReference = !quoteReference || String(values[i][headers['Quote Reference'] - 1]) === String(quoteReference);
-      var matchesType = String(values[i][headers['Document Type'] - 1]) === 'Quote Snapshot';
+      var matchesType = String(values[i][headers['Document Type'] - 1]).indexOf('Quote') !== -1;
       if (matchesLead && matchesReference && matchesType) matches.push(rowResult_(sheet, i + 1, headers, values[i]));
     }
     return matches.sort(function (left, right) {
@@ -227,6 +276,30 @@ var MidtsDocumentService = (function () {
   function parseSnapshotJson_(value) {
     if (value && typeof value === 'object') return value;
     try { return JSON.parse(String(value || '{}')); } catch (error) { return null; }
+  }
+
+  function parseArrayJson_(value) {
+    if (Array.isArray(value)) return value;
+    try { var parsed = JSON.parse(String(value || '[]')); return Array.isArray(parsed) ? parsed : []; } catch (error) { return []; }
+  }
+
+  function appendSystemEvent_(document, eventName, at) {
+    var headers = document.headers || {};
+    if (!headers['System Events JSON']) return;
+    var events = parseArrayJson_(document.record['System Events JSON']);
+    events.push({ event: eventName, at: (at || new Date()).toISOString() });
+    document.sheet.getRange(document.rowNumber, headers['System Events JSON']).setValue(JSON.stringify(events));
+  }
+
+  function canonicalStatus_(value) {
+    var normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'draft' || normalized === 'draft snapshot') return 'Draft';
+    if (normalized === 'under review') return 'Under Review';
+    if (normalized === 'approved' || normalized === 'pdf generated') return 'Approved';
+    if (normalized === 'issued' || normalized === 'sent') return 'Issued';
+    if (normalized === 'superseded') return 'Superseded';
+    if (normalized === 'withdrawn') return 'Withdrawn';
+    return normalized ? String(value || '').trim() : 'Draft';
   }
 
   function formatDateValue_(value) {
@@ -258,7 +331,7 @@ var MidtsDocumentService = (function () {
 
   function updateDocument_(document, updates) {
     Object.keys(updates).forEach(function (header) {
-      document.sheet.getRange(document.rowNumber, document.headers[header]).setValue(updates[header]);
+      if (document.headers[header]) document.sheet.getRange(document.rowNumber, document.headers[header]).setValue(updates[header]);
     });
   }
 
@@ -277,13 +350,6 @@ var MidtsDocumentService = (function () {
       var safe = byte < 0 ? byte + 256 : byte;
       return ('0' + safe.toString(16)).slice(-2);
     }).join('');
-  }
-
-  function formatMoney_(value, currency) {
-    var amount = Number(String(value || '').replace(/,/g, '').trim());
-    if (!isFinite(amount)) return '';
-    var code = String(currency || 'GBP').toUpperCase();
-    return (code === 'GBP' ? '£' : code + ' ') + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
   return {
