@@ -1,7 +1,7 @@
 # MIDTS Business Lifecycle Status
 
 Last reviewed: 2026-07-15
-Branch reviewed: `sprint/7-invoice-minimum-path`
+Branch reviewed: `sprint/8-full-live-lifecycle-verification`
 Repository role: backend gateway, Apps Script services, Sheets, Drive, document generation, and email transport.
 
 ## Architecture Check
@@ -37,23 +37,21 @@ No parallel backend path or replacement architecture was introduced.
 | Project Creation | Sprint 5 implemented | `MidtsProjectService` lists accepted quotes without projects and creates project rows. |
 | Document Suite / VSP alignment | Sprint 6 implemented | `docs/DOCUMENT_OWNERSHIP.md` defines VSP as vendor working files and client-commercial documents as Document Suite concerns. |
 | Invoice minimum path | Sprint 7 implemented | `MidtsInvoiceService` lists active projects ready for invoice records and creates draft invoice rows from approved pricing through the existing gateway pattern. |
+| Full lifecycle verification | Sprint 8 checklist implemented | `docs/LAUNCH_VERIFICATION_CHECKLIST.md` defines the live production verification run and pass criteria. |
 | Workspace Authentication | Sprint 1 frontend implementation | Production Workspace auth is implemented in the frontend branch. |
 
 ## Not Yet Complete / Needs Verification
 
 | Stage | Status | Remaining work |
 | --- | --- | --- |
-| Quote PDF generation and release | Sprint 2 pending live verification | Apps Script needs deployment and live quote approval verification against Drive, `Documents`, `Leads`, and `Webhook Logs`. |
-| Send approved quote | Sprint 3 pending live verification | Apps Script needs deployment and live send verification against client email receipt, `Documents`, `Leads`, `Email Logs`, and `Webhook Logs`. |
-| Client quote acceptance | Sprint 4 pending live verification | Apps Script needs deployment and live acceptance verification against `Quote Acceptances`, `Leads`, and `Webhook Logs`. |
-| Project Creation | Sprint 5 pending live verification | Apps Script needs deployment and live project creation verification against `Projects`, `Leads`, Drive folder, source quote document ID, and `Webhook Logs`. |
-| Invoice minimum path | Sprint 7 pending live verification | Apps Script needs deployment and live invoice creation verification against `Invoices`, `Leads`, and `Webhook Logs`. |
+| Live lifecycle verification | Pending deployment/run | Apps Script and Cloud Run gateway must be deployed from `main`, then `docs/LAUNCH_VERIFICATION_CHECKLIST.md` must be executed with one real test lead. |
 | Proposal Builder | Not complete | No completed Workspace-controlled proposal builder slice has been verified. |
+| Client-facing invoice document rendering | Future extension | Sprint 7 creates invoice records only. Any client-facing invoice document must use protected Workspace Document Suite rules. |
 
 ## Commercial Launch Sprint Plan
 
-See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 7 deployment verification.
+See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` and `docs/LAUNCH_VERIFICATION_CHECKLIST.md`.
 
 ## Conflict Check
 
-Sprint 7 preserves the existing gateway/Apps Script architecture. It adds only the active-project invoice read/action path and reuses existing project, lead, pricing, invoice, sheet, and webhook logging services.
+Sprints 6-8 preserve the existing gateway/Apps Script architecture. They do not add public document routes, replace VSP, replace the gateway, or create a parallel application.
