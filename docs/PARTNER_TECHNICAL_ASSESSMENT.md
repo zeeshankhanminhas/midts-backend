@@ -32,6 +32,29 @@ Validation remains authoritative in `TechnicalReviewService` and `DecisionServic
 - MIDTS business recommendation remains separate from technical feasibility
 - Qualification is blocked unless assessment evidence is complete
 
-Known retained gap:
+## Vendor Request Assessment Bridge
 
-The deeper Vendor Request token to external Partner Technical Assessment submission bridge is not completed in this cleanup. Vendor Request and Vendor Pricing contracts remain unchanged in this branch.
+Vendor Request Setup remains a Workspace-controlled action. When MIDTS sends a vendor request, the backend now sends the partner the Partner Technical Assessment form first.
+
+Flow:
+
+1. Workspace sends `setupVendorRequest` through the gateway.
+2. `VendorRequestService` creates the Vendor Request row and sends the partner assessment link.
+3. The external partner opens `action=partnerAssessment` with the existing vendor request token.
+4. The partner submits assessment evidence, feasibility, files/revisions reviewed, assumptions, risks, exclusions, lead time, and pricing-readiness declaration.
+5. `VendorRequestService` stores the assessment by calling `TechnicalReviewService.recordReview` without changing the existing `recordTechnicalReview` backend contract.
+6. Feasible or Feasible with Assumptions plus pricing-ready moves the lead to `Vendor Pricing` with `Vendor Pricing Status = Ready for Pricing`.
+7. Clarification, alternative approach, not feasible, or outside capability block pricing and move the lead to the appropriate MIDTS decision state.
+8. Vendor pricing submission is blocked until the latest Partner Technical Assessment is feasible and contains the required evidence fields.
+
+The pricing form and direct `VendorPricingService.recordVendorPricing` path both enforce the same assessment prerequisite. This prevents a partner from bypassing the assessment bridge by opening an old pricing URL.
+
+The bridge intentionally reuses:
+
+- Apps Script web app routes
+- existing Vendor Request token records
+- existing Technical Reviews storage
+- existing Vendor Pricing storage
+- existing Workspace gateway actions
+
+No new UI architecture, sheet names, or public document routes are introduced.
