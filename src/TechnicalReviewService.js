@@ -105,6 +105,7 @@ var MidtsTechnicalReviewService = (function () {
     var partnerDeclaration = clean_(input.partnerDeclaration || input.partner_declaration || input.confirmation);
     var reviewValidUntil = parseOptionalDate_(input.reviewValidUntil || input.review_valid_until);
     var partnerSubmittedAt = parseSubmittedAt_(input.partnerSubmittedAt || input.partner_submitted_at || input.assessmentSubmittedAt || input.assessment_submitted_at || new Date());
+    var pricingReady = normalizeBoolean_(input.pricingReady || input.pricing_ready || input.readyForPricing || input.ready_for_pricing);
     var summary = clean_(input.reviewSummary || input.review_summary || input.technicalAssessmentSummary || input.technical_assessment_summary || input.technicalSummary || input.technical_summary);
     var internalNotes = clean_(input.internalNotes || input.internal_notes || input.internalPartnerNotes || input.internal_partner_notes);
     var businessRecommendation = normalizeRecommendation_(input.recommendation || input.businessRecommendation || input.business_recommendation || recommendationForFeasibility_(feasibilityStatus));
@@ -179,7 +180,7 @@ var MidtsTechnicalReviewService = (function () {
       now
     ]);
 
-    var updates = bridgeAssessment ? buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary) : {
+    var updates = bridgeAssessment ? buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary, pricingReady) : {
       'Status': 'Partner Technical Assessment Complete',
       'Lifecycle Status': 'Qualification Decision',
       'Review Status': 'Partner Technical Assessment Complete',
@@ -215,7 +216,7 @@ var MidtsTechnicalReviewService = (function () {
     };
   }
 
-  function buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary) {
+  function buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary, pricingReady) {
     var base = {
       'Status': 'Partner Technical Assessment Complete',
       'Review Status': 'Partner Technical Assessment Complete',
@@ -224,6 +225,15 @@ var MidtsTechnicalReviewService = (function () {
       'Last Updated At': now
     };
     if (feasibilityStatus === 'Feasible' || feasibilityStatus === 'Feasible with Assumptions') {
+      if (!pricingReady) {
+        return Object.assign(base, {
+          'Lifecycle Status': 'Partner Decision Required',
+          'Next Action': 'Resolve partner pricing readiness',
+          'Next Action Due': now,
+          'Vendor Pricing Required': 'Yes',
+          'Vendor Pricing Status': 'Assessment Pricing Not Ready'
+        });
+      }
       return Object.assign(base, {
         'Lifecycle Status': 'Vendor Pricing',
         'Next Action': 'Submit vendor pricing',
@@ -370,6 +380,11 @@ var MidtsTechnicalReviewService = (function () {
       if (Array.isArray(parsed)) return parsed.map(clean_).filter(Boolean);
     } catch (error) {}
     return text.split(/\r?\n|;/).map(clean_).filter(Boolean);
+  }
+
+  function normalizeBoolean_(value) {
+    var normalized = clean_(value).toLowerCase();
+    return normalized === 'yes' || normalized === 'true' || normalized === 'ready' || normalized === 'pricing ready';
   }
 
   function parseSubmittedAt_(value) {
