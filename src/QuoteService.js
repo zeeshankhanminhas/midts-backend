@@ -1,4 +1,6 @@
 var MidtsQuoteService = (function () {
+  var QUOTE_RENDER_TTL_MS = 15 * 60 * 1000;
+
   function prepareQuoteDraft(leadId, preparer) {
     if (!leadId) {
       return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required for quote preparation.' };
@@ -150,6 +152,10 @@ var MidtsQuoteService = (function () {
 
     var quoteReference = existingLead.lead['Quote Reference'];
     var sourceQuoteUrl = withDocumentStatus_(existingLead.lead['Quote Document Link'], 'approved');
+    var signedSource = withQuoteRenderToken_(sourceQuoteUrl, leadId, quoteReference);
+    if (!signedSource.ok) return signedSource;
+    sourceQuoteUrl = signedSource.url;
+
     var now = new Date();
     var approvedBy = approver || 'Apps Script Test';
     var snapshotApproval = MidtsDocumentService.approveQuoteSnapshot(leadId, quoteReference, approvedBy);
@@ -309,6 +315,50 @@ var MidtsQuoteService = (function () {
     if (!source) return '';
     if (/[?&]status=/.test(source)) return source.replace(/([?&]status=)[^&]*/, '$1' + encodeURIComponent(status));
     return source + (source.indexOf('?') === -1 ? '?' : '&') + 'status=' + encodeURIComponent(status);
+  }
+
+  function withQuoteRenderToken_(url, leadId, quoteReference) {
+    var source = String(url || '').trim();
+    if (!source) {
+      return { ok: false, code: 'QUOTE_RENDER_SOURCE_MISSING', message: 'Quote source URL is required for PDF rendering.' };
+    }
+
+    var secret;
+    try {
+      secret = MidtsConfig.getRequiredScriptProperty('QUOTE_RENDER_SECRET');
+    } catch (error) {
+      return { ok: false, code: 'QUOTE_RENDER_SECRET_MISSING', message: 'QUOTE_RENDER_SECRET must be set in Apps Script and Vercel before approving quote PDFs.' };
+    }
+
+    var renderExp = String(Date.now() + QUOTE_RENDER_TTL_MS);
+    var payload = quoteRenderPayload_(leadId, quoteReference, renderExp);
+    var signature = signQuoteRenderPayload_(payload, secret);
+    return {
+      ok: true,
+      url: appendQueryParams_(source, {
+        render: 'quote-pdf',
+        renderExp: renderExp,
+        renderSig: signature
+      })
+    };
+  }
+
+  function quoteRenderPayload_(leadId, quoteReference, renderExp) {
+    return String(leadId || '').trim() + '|' + String(quoteReference || '').trim() + '|' + String(renderExp || '').trim();
+  }
+
+  function signQuoteRenderPayload_(payload, secret) {
+    var bytes = Utilities.computeHmacSha256Signature(payload, secret);
+    return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, '');
+  }
+
+  function appendQueryParams_(url, params) {
+    var separator = url.indexOf('?') === -1 ? '?' : '&';
+    var parts = [];
+    Object.keys(params).forEach(function (key) {
+      parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(params[key]));
+    });
+    return url + separator + parts.join('&');
   }
 
   function formatQuoteAmount_(value, currency) {
