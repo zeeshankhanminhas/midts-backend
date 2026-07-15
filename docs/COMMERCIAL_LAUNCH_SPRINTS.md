@@ -102,6 +102,24 @@ Minimum acceptance:
 - Acceptance actor, timestamp, and source are audited.
 - Duplicate acceptance is idempotent.
 
+Status: implemented on `sprint/4-client-quote-acceptance`, pending Apps Script deployment and live verification.
+
+Implementation notes:
+
+- `MidtsQuoteAcceptanceService.listPendingQuoteAcceptances()` exposes sent quotes waiting for acceptance.
+- `MidtsQuoteAcceptanceService.acceptQuote()` records acceptance in `Quote Acceptances`, updates `Leads`, and logs `quote_accepted`.
+- Duplicate acceptance is idempotent when the lead is already `Quote Accepted` / `Accepted`.
+- Successful acceptance sets `Lifecycle Status = Quote Accepted`, `Quote Status = Accepted`, `Human Approval = Approved`, `Final Outcome = Quote Accepted`, and `Next Action = Create project`.
+- This state is the existing input expected by `MidtsProjectService.createProjectFromAcceptedQuote()`.
+
+Deployment verification:
+
+- Deploy Apps Script after Sprint 4 backend changes.
+- Confirm `listPendingQuoteAcceptances` returns sent quotes.
+- Record one acceptance from Workspace.
+- Confirm `Quote Acceptances`, `Leads`, and `Webhook Logs` update consistently.
+- Confirm the accepted lead is ready for Project Creation.
+
 ## Sprint 5 - Project Creation
 
 Goal: expose project creation from accepted quote through Workspace and gateway.
