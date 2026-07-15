@@ -159,6 +159,15 @@ Minimum acceptance:
 - VSP Google Docs are formally documented as vendor working files only, while client/commercial documents remain Document Suite controlled.
 - No ambiguous document ownership remains.
 
+Status: implemented on `sprint/6-document-suite-vsp-alignment`.
+
+Implementation notes:
+
+- `docs/DOCUMENT_OWNERSHIP.md` defines the Document Suite boundary.
+- Vendor Safe Package remains vendor working material in Drive/Google Docs.
+- Quote, proposal, and invoice client/commercial documents remain owned by the protected Workspace Document Suite.
+- No public document route, new app, or replacement document engine was introduced.
+
 ## Sprint 7 - Invoice Minimum Path
 
 Goal: create the minimum controlled invoice workflow needed for commercial billing.
