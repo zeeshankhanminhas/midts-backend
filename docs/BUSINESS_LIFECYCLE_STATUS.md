@@ -1,7 +1,7 @@
 # MIDTS Business Lifecycle Status
 
 Last reviewed: 2026-07-15
-Branch reviewed: `sprint/1-production-workspace-auth`
+Branch reviewed: `sprint/2-quote-pdf-live-hardening`
 Repository role: backend gateway, Apps Script services, Sheets, Drive, document generation, and email transport.
 
 ## Architecture Check
@@ -30,14 +30,14 @@ No parallel backend path or replacement architecture was introduced.
 | Vendor Pricing Submission | Complete | Vendor pricing submission records pricing, updates the request, and moves the lead to Margin Review. |
 | Margin Review | Implemented | Existing service/routes support pending margin reviews, margin update, approval, and movement to Quote Preparation. |
 | Quote Builder | Implemented | Quote builder consumes approved margin/vendor pricing and creates controlled quote snapshots. |
-| Quote Draft Review / Controlled Quote Document | Partially complete | Quote read payload is client-safe and prevents URL status override. Further live PDF/send verification remains required. |
+| Quote Draft Review / Controlled Quote Document | Sprint 2 hardened | Quote approval signs the protected Workspace quote document URL for PDF rendering and reports renderer/configuration failures clearly. |
 | Workspace Authentication | Sprint 1 frontend implementation | Production Workspace auth is implemented in the frontend branch. No Apps Script/backend service change is required for Sprint 1. |
 
 ## Not Yet Complete / Needs Verification
 
 | Stage | Status | Remaining work |
 | --- | --- | --- |
-| Quote PDF generation and release | Needs live verification | Backend document controls exist, but full live PDF generation, approval, send, and audit verification still need deployment/runtime testing. |
+| Quote PDF generation and release | Sprint 2 pending live verification | Apps Script needs deployment with `QUOTE_RENDER_SECRET`, `PDF_RENDERER_URL`, and `PDF_RENDERER_TOKEN`. Then quote approval must be verified against Drive, `Documents`, `Leads`, and `Webhook Logs`. |
 | Send approved quote | Not complete | No completed Workspace-controlled send quote action has been verified. |
 | Client quote acceptance | Not complete | No client or internal accepted-quote workflow has been verified. |
 | Project Creation | Not complete | Backend support exists, but no completed Workspace/gateway handoff has been verified. |
@@ -47,4 +47,8 @@ No parallel backend path or replacement architecture was introduced.
 
 ## Commercial Launch Sprint Plan
 
-See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan.
+See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 2 deployment variables.
+
+## Conflict Check
+
+Sprint 2 preserves the existing gateway/Apps Script architecture. It changes only approved quote PDF rendering access and error reporting; it does not alter public routes, record contracts, or earlier lifecycle slices.
