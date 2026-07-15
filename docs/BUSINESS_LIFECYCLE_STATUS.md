@@ -1,7 +1,7 @@
 # MIDTS Business Lifecycle Status
 
 Last reviewed: 2026-07-15
-Branch reviewed: `sprint/6-document-suite-vsp-alignment`
+Branch reviewed: `sprint/7-invoice-minimum-path`
 Repository role: backend gateway, Apps Script services, Sheets, Drive, document generation, and email transport.
 
 ## Architecture Check
@@ -24,35 +24,36 @@ No parallel backend path or replacement architecture was introduced.
 | --- | --- | --- |
 | Website Lead | Complete | Lead capture writes `Leads`, logs webhook attempts, and sends acknowledgement email. |
 | Step 2 Technical Intake | Complete | Technical intake writes `Technical Intake`, uploads client files to Drive, stores Drive URLs, updates lead lifecycle, and logs/email-notifies internally. |
-| Technical Review / Partner Technical Assessment | Complete | `recordTechnicalReview` remains the contract. The service requires partner assessment evidence, canonical feasibility status, reviewer identity, reviewed files/revisions, and assessment links. |
-| Qualification Decision | Complete | DecisionService requires a complete partner assessment before routing qualification outcomes. Legacy Apps Script decision-link workflow remains retired for this slice. |
+| Technical Review / Partner Technical Assessment | Complete | `recordTechnicalReview` remains the contract. |
+| Qualification Decision | Complete | DecisionService requires a complete partner assessment before routing qualification outcomes. |
 | Vendor Safe Package | Complete | Vendor-safe package generation remains the controlled package handoff before vendor pricing and is documented as vendor working material only. |
-| Vendor Request Setup | Complete | Vendor requests require complete partner assessment evidence and, when applicable, the latest approved Vendor Safe Package link. Requests store Technical Review ID, source package ID, scope revision, and files/revisions priced. |
+| Vendor Request Setup | Complete | Vendor requests require complete partner assessment evidence and package evidence where applicable. |
 | Vendor Pricing Submission | Complete | Vendor pricing submission records pricing, updates the request, and moves the lead to Margin Review. |
 | Margin Review | Implemented | Existing service/routes support pending margin reviews, margin update, approval, and movement to Quote Preparation. |
 | Quote Builder | Implemented | Quote builder consumes approved margin/vendor pricing and creates controlled quote snapshots. |
-| Quote Draft Review / Controlled Quote Document | Sprint 2 hardened | Quote approval signs the protected Workspace quote document URL for PDF rendering and reports renderer/configuration failures clearly. |
-| Send Approved Quote | Sprint 3 implemented | `MidtsQuoteSendService` lists generated approved PDFs and sends the selected quote through existing Apps Script email/Drive/Sheets services. |
-| Client Quote Acceptance | Sprint 4 implemented | `MidtsQuoteAcceptanceService` lists sent quotes, records acceptance, updates the lead to project-creation readiness, and writes the `Quote Acceptances` audit sheet. |
-| Project Creation | Sprint 5 implemented | `MidtsProjectService` lists accepted quotes without projects and creates project rows from the selected accepted quote through the existing router/gateway pattern. |
-| Document Suite / VSP alignment | Sprint 6 implemented | `docs/DOCUMENT_OWNERSHIP.md` defines the boundary: VSP remains vendor working files; quote/proposal/invoice client-commercial documents belong to the protected Workspace Document Suite. |
-| Workspace Authentication | Sprint 1 frontend implementation | Production Workspace auth is implemented in the frontend branch. No Apps Script/backend service change is required for Sprint 1. |
+| Quote Draft Review / Controlled Quote Document | Sprint 2 hardened | Quote approval signs the protected Workspace quote document URL for PDF rendering. |
+| Send Approved Quote | Sprint 3 implemented | `MidtsQuoteSendService` lists generated approved PDFs and sends the selected quote. |
+| Client Quote Acceptance | Sprint 4 implemented | `MidtsQuoteAcceptanceService` lists sent quotes, records acceptance, and updates the lead to project-creation readiness. |
+| Project Creation | Sprint 5 implemented | `MidtsProjectService` lists accepted quotes without projects and creates project rows. |
+| Document Suite / VSP alignment | Sprint 6 implemented | `docs/DOCUMENT_OWNERSHIP.md` defines VSP as vendor working files and client-commercial documents as Document Suite concerns. |
+| Invoice minimum path | Sprint 7 implemented | `MidtsInvoiceService` lists active projects ready for invoice records and creates draft invoice rows from approved pricing through the existing gateway pattern. |
+| Workspace Authentication | Sprint 1 frontend implementation | Production Workspace auth is implemented in the frontend branch. |
 
 ## Not Yet Complete / Needs Verification
 
 | Stage | Status | Remaining work |
 | --- | --- | --- |
-| Quote PDF generation and release | Sprint 2 pending live verification | Apps Script needs deployment with `QUOTE_RENDER_SECRET`, `PDF_RENDERER_URL`, and `PDF_RENDERER_TOKEN`. Then quote approval must be verified against Drive, `Documents`, `Leads`, and `Webhook Logs`. |
-| Send approved quote | Sprint 3 pending live verification | Apps Script needs deployment. Then one approved quote must be sent live and verified against client email receipt, `Documents`, `Leads`, `Email Logs`, and `Webhook Logs`. |
-| Client quote acceptance | Sprint 4 pending live verification | Apps Script needs deployment. Then one sent quote must be accepted live and verified against `Quote Acceptances`, `Leads`, and `Webhook Logs`. |
-| Project Creation | Sprint 5 pending live verification | Apps Script needs deployment. Then one accepted quote must be converted into an active project and verified against `Projects`, `Leads`, Drive folder, source quote document ID, and `Webhook Logs`. |
+| Quote PDF generation and release | Sprint 2 pending live verification | Apps Script needs deployment and live quote approval verification against Drive, `Documents`, `Leads`, and `Webhook Logs`. |
+| Send approved quote | Sprint 3 pending live verification | Apps Script needs deployment and live send verification against client email receipt, `Documents`, `Leads`, `Email Logs`, and `Webhook Logs`. |
+| Client quote acceptance | Sprint 4 pending live verification | Apps Script needs deployment and live acceptance verification against `Quote Acceptances`, `Leads`, and `Webhook Logs`. |
+| Project Creation | Sprint 5 pending live verification | Apps Script needs deployment and live project creation verification against `Projects`, `Leads`, Drive folder, source quote document ID, and `Webhook Logs`. |
+| Invoice minimum path | Sprint 7 pending live verification | Apps Script needs deployment and live invoice creation verification against `Invoices`, `Leads`, and `Webhook Logs`. |
 | Proposal Builder | Not complete | No completed Workspace-controlled proposal builder slice has been verified. |
-| Invoice minimum path | Not complete | Invoice schema exists, but no completed billing workflow has been verified. |
 
 ## Commercial Launch Sprint Plan
 
-See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 6 document ownership note.
+See `docs/COMMERCIAL_LAUNCH_SPRINTS.md` for the eight-sprint launch plan and Sprint 7 deployment verification.
 
 ## Conflict Check
 
-Sprint 6 is documentation-only alignment. It preserves the existing VSP backend transport and confirms client/commercial documents remain protected Workspace Document Suite concerns. No public routes, gateway replacement, or parallel workflow pattern were introduced.
+Sprint 7 preserves the existing gateway/Apps Script architecture. It adds only the active-project invoice read/action path and reuses existing project, lead, pricing, invoice, sheet, and webhook logging services.
