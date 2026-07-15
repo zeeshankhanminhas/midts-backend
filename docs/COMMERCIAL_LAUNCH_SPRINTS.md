@@ -39,6 +39,29 @@ Minimum acceptance:
 - `Documents`, `Leads`, and `Webhook Logs` update consistently.
 - Useful errors are shown in Workspace when render fails.
 
+Status: implemented on `sprint/2-quote-pdf-live-hardening`, pending Apps Script deployment and live verification.
+
+Implementation notes:
+
+- `approveQuoteDraft` signs the approved Workspace quote document URL before calling the PDF renderer.
+- The signed URL is short-lived and valid only for the selected lead and quote reference.
+- `PdfRenderService` reports missing renderer configuration, renderer HTTP failures, HTML responses, empty payloads, and Drive storage failures clearly.
+- `recordTechnicalReview`, quote builder, and existing gateway contracts are unchanged.
+
+Required Apps Script properties:
+
+- `PDF_RENDERER_URL`
+- `PDF_RENDERER_TOKEN`
+- `QUOTE_RENDER_SECRET` matching the frontend Vercel `QUOTE_RENDER_SECRET`
+
+Deployment verification:
+
+- Deploy Apps Script after setting `QUOTE_RENDER_SECRET`.
+- Confirm quote approval writes a PDF file to Drive.
+- Confirm the `Documents` row receives `PDF File ID` and `PDF Drive URL`.
+- Confirm the `Leads` row moves to `Quote Approved` / `Approved to Send`.
+- Confirm `Webhook Logs` records `quote_approved_pdf_generated` on success or a clear `QUOTE_PDF_RENDER_FAILED` failure.
+
 ## Sprint 3 - Send Approved Quote
 
 Goal: add a Workspace-controlled action to send the generated approved quote to the client.
