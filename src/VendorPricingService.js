@@ -71,6 +71,10 @@ var MidtsVendorPricingService = (function () {
 
     var guardResult = guardLeadReadyForPricing_(existingLead.lead);
     if (!guardResult.ok) return guardResult;
+
+    var assessmentGuard = guardPartnerAssessmentReadyForPricing_(existingLead.lead);
+    if (!assessmentGuard.ok) return assessmentGuard;
+
     if (normalized.vendorCurrency !== normalized.clientQuoteCurrency) {
       return {
         ok: false,
@@ -136,7 +140,8 @@ var MidtsVendorPricingService = (function () {
         marginType: calculated.marginType,
         marginValue: calculated.marginValue,
         clientQuoteAmount: calculated.clientQuoteAmount,
-        revision: revision
+        revision: revision,
+        partnerAssessmentId: assessmentGuard.assessmentId
       },
       submissionId: updatedLead.lead['Submission ID'] || '',
       email: updatedLead.lead['Email'] || '',
@@ -256,7 +261,70 @@ var MidtsVendorPricingService = (function () {
       return { ok: false, code: 'LEAD_NOT_IN_VENDOR_PRICING', message: 'Lead lifecycle must be Vendor Pricing before recording vendor pricing.' };
     }
 
+    var pricingStatus = String(lead['Vendor Pricing Status'] || '').trim();
+    var allowedPricingStatus = pricingStatus === 'Ready for Pricing' || pricingStatus === 'Pricing Received' || pricingStatus === 'Margin Approved';
+    if (!allowedPricingStatus) {
+      return {
+        ok: false,
+        code: 'VENDOR_PRICING_NOT_READY',
+        message: 'Vendor pricing is blocked until Partner Technical Assessment is feasible and pricing-ready. Current status: ' + (pricingStatus || 'not set') + '.'
+      };
+    }
+
     return { ok: true };
+  }
+
+  function guardPartnerAssessmentReadyForPricing_(lead) {
+    var leadId = lead && lead['Lead ID'];
+    if (!leadId) {
+      return { ok: false, code: 'MISSING_LEAD_ID', message: 'Lead ID is required before checking Partner Technical Assessment.' };
+    }
+
+    var reviewResult = MidtsSheetService.findLatestTechnicalReviewByLeadId(leadId);
+    if (!reviewResult) {
+      return {
+        ok: false,
+        code: 'PARTNER_ASSESSMENT_REQUIRED',
+        message: 'Partner Technical Assessment is required before vendor pricing can be submitted.'
+      };
+    }
+
+    var review = reviewResult.review || {};
+    var feasibility = String(review['Feasibility Status'] || '').trim();
+    var pricingReady = feasibility === 'Feasible' || feasibility === 'Feasible with Assumptions';
+    if (!pricingReady) {
+      return {
+        ok: false,
+        code: 'PARTNER_ASSESSMENT_NOT_PRICING_READY',
+        message: 'Vendor pricing requires a feasible Partner Technical Assessment. Current outcome: ' + (feasibility || 'not recorded') + '.'
+      };
+    }
+
+    var requiredFields = [
+      'Technical Review ID',
+      'Reviewer',
+      'Reviewer Organisation',
+      'Files And Revisions Reviewed',
+      'Partner Assessment Document Link',
+      'Partner Submitted At',
+      'Review Summary'
+    ];
+    var missing = requiredFields.filter(function (header) {
+      return !String(review[header] || '').trim();
+    });
+    if (missing.length) {
+      return {
+        ok: false,
+        code: 'PARTNER_ASSESSMENT_INCOMPLETE',
+        message: 'Partner Technical Assessment is missing required evidence: ' + missing.join(', ') + '.'
+      };
+    }
+
+    return {
+      ok: true,
+      assessmentId: review['Technical Review ID'],
+      feasibilityStatus: feasibility
+    };
   }
 
   function guardLeadReadyForMarginApproval_(lead) {
