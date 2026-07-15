@@ -74,6 +74,23 @@ Minimum acceptance:
 - `Documents` status is marked `Sent`.
 - `Email Logs` and `Webhook Logs` record success/failure.
 
+Status: implemented on `sprint/3-send-approved-quote`, pending Apps Script deployment and live verification.
+
+Implementation notes:
+
+- `MidtsQuoteSendService.listPendingApprovedQuotes()` exposes quotes where the lead is `Quote Approved` and `Approved to Send`, and the latest quote snapshot has a generated PDF.
+- `MidtsQuoteSendService.sendApprovedQuote()` sends the approved PDF as an email attachment through `MidtsEmailService.sendApprovedQuoteEmail()`.
+- Successful send updates `Documents.Status` to `Sent`, sets `Sent At` and `Sent To`, and updates the lead to `Quote Sent`, `Sent to Client`, `Await client acceptance`.
+- `Email Logs` records sent/failed email attempts and `Webhook Logs` records `quote_sent_to_client` on success.
+
+Deployment verification:
+
+- Deploy Apps Script after Sprint 3 backend changes.
+- Confirm `listPendingApprovedQuotes` returns approved quotes with generated PDFs.
+- Send one approved quote from Workspace.
+- Confirm the client receives the PDF attachment.
+- Confirm `Documents`, `Leads`, `Email Logs`, and `Webhook Logs` update consistently.
+
 ## Sprint 4 - Client Quote Acceptance
 
 Goal: record client acceptance of a sent quote.
