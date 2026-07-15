@@ -9,6 +9,7 @@ var MidtsSheetService = (function () {
     HANDOVER_RECORDS: 'Handover Records',
     INVOICES: 'Invoices',
     VENDOR_PRICING: 'Vendor Pricing',
+    QUOTE_ACCEPTANCES: 'Quote Acceptances',
     WEBHOOK_LOGS: 'Webhook Logs',
     EMAIL_LOGS: 'Email Logs'
   };
@@ -166,6 +167,19 @@ var MidtsSheetService = (function () {
     'Client Quote Currency'
   ];
 
+  var QUOTE_ACCEPTANCE_HEADERS = [
+    'Acceptance ID',
+    'Lead ID',
+    'Quote Reference',
+    'Accepted At',
+    'Accepted By',
+    'Acceptance Source',
+    'Client Email',
+    'Quote Document Link',
+    'Notes',
+    'Raw Payload JSON'
+  ];
+
   var LOG_HEADERS = [
     'Logged At',
     'Request ID',
@@ -252,6 +266,10 @@ var MidtsSheetService = (function () {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS), VENDOR_PRICING_HEADERS, row);
   }
 
+  function appendQuoteAcceptanceRow(row) {
+    appendRowByHeaders_(getOrCreateSheet(SHEETS.QUOTE_ACCEPTANCES, QUOTE_ACCEPTANCE_HEADERS), QUOTE_ACCEPTANCE_HEADERS, row);
+  }
+
   function appendProjectRow(row) {
     appendRowByHeaders_(getOrCreateSheet(SHEETS.PROJECTS, PROJECT_HEADERS), PROJECT_HEADERS, row);
   }
@@ -319,6 +337,10 @@ var MidtsSheetService = (function () {
 
   function getProjectSheet() {
     return getOrCreateSheet(SHEETS.PROJECTS, PROJECT_HEADERS);
+  }
+
+  function getQuoteAcceptanceSheet() {
+    return getOrCreateSheet(SHEETS.QUOTE_ACCEPTANCES, QUOTE_ACCEPTANCE_HEADERS);
   }
 
   function getHeaderMap(sheet) {
@@ -602,6 +624,7 @@ var MidtsSheetService = (function () {
     getOrCreateSheet(SHEETS.HANDOVER_RECORDS, HANDOVER_RECORD_HEADERS);
     getOrCreateSheet(SHEETS.INVOICES, INVOICE_HEADERS);
     getOrCreateSheet(SHEETS.VENDOR_PRICING, VENDOR_PRICING_HEADERS);
+    getOrCreateSheet(SHEETS.QUOTE_ACCEPTANCES, QUOTE_ACCEPTANCE_HEADERS);
     getOrCreateSheet(SHEETS.WEBHOOK_LOGS, LOG_HEADERS);
     getOrCreateSheet(SHEETS.EMAIL_LOGS, EMAIL_LOG_HEADERS);
     refreshPipelineSafely_();
@@ -615,6 +638,7 @@ var MidtsSheetService = (function () {
       handoverRecordsSheet: SHEETS.HANDOVER_RECORDS,
       invoicesSheet: SHEETS.INVOICES,
       vendorPricingSheet: SHEETS.VENDOR_PRICING,
+      quoteAcceptancesSheet: SHEETS.QUOTE_ACCEPTANCES,
       logsSheet: SHEETS.WEBHOOK_LOGS,
       emailLogsSheet: SHEETS.EMAIL_LOGS
     };
@@ -631,6 +655,7 @@ var MidtsSheetService = (function () {
     HANDOVER_RECORD_HEADERS: HANDOVER_RECORD_HEADERS,
     INVOICE_HEADERS: INVOICE_HEADERS,
     VENDOR_PRICING_HEADERS: VENDOR_PRICING_HEADERS,
+    QUOTE_ACCEPTANCE_HEADERS: QUOTE_ACCEPTANCE_HEADERS,
     LOG_HEADERS: LOG_HEADERS,
     EMAIL_LOG_HEADERS: EMAIL_LOG_HEADERS,
     appendLeadRow: appendLeadRow,
@@ -642,6 +667,7 @@ var MidtsSheetService = (function () {
     appendHandoverRecordRow: appendHandoverRecordRow,
     appendInvoiceRow: appendInvoiceRow,
     appendVendorPricingRow: appendVendorPricingRow,
+    appendQuoteAcceptanceRow: appendQuoteAcceptanceRow,
     appendWebhookLog: appendWebhookLog,
     appendEmailLog: appendEmailLog,
     findLeadById: findLeadById,
