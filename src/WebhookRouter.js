@@ -37,12 +37,12 @@ var MidtsWebhookRouter = (function () {
     var result = MidtsTechnicalIntakeService.completeStep2(payload);
     if (!result.ok) return MidtsResponseService.failure(result.code, result.message, { requestId:requestId });
     var notice = MidtsEmailService.sendInternalReviewNotification(result);
-    return MidtsResponseService.success({ requestId:requestId, leadId:result.leadId, submissionId:result.submissionId, technicalIntakeId:result.technicalIntakeId, lifecycleStatus:result.lifecycleStatus, reviewStatus:result.reviewStatus, nextAction:result.nextAction, internalNotificationStatus:notice.status, vendorSafePackageRequired:result.vendorSafePackageRequired, uploadedFileLinks:result.uploadedFileLinks || [], uploadFolderUrl:result.uploadFolderUrl || '', message:'Step 2 completed. Lead is ready for human review.' });
+    return MidtsResponseService.success({ requestId:requestId, leadId:result.leadId, submissionId:result.submissionId, technicalIntakeId:result.technicalIntakeId, lifecycleStatus:result.lifecycleStatus, reviewStatus:result.reviewStatus, nextAction:result.nextAction, internalNotificationStatus:notice.status, vendorSafePackageRequired:result.vendorSafePackageRequired, uploadedFileLinks:result.uploadedFileLinks || [], uploadFolderUrl:result.uploadFolderUrl || '', message:'Step 2 completed. Lead is ready for workspace review.' });
   }
 
   function handleWorkspaceRead_(payload, requestId) {
     var action = normalizeCompact_(payload.action || '');
-    if (action === 'listpendingtechnicalreviews') return readSuccess_(requestId, MidtsWorkspaceReadService.listPendingTechnicalReviews());
+    if (action === 'listpendingtechnicalreviews' || action === 'listpendingpartnerassessments') return readSuccess_(requestId, MidtsWorkspaceReadService.listPendingTechnicalReviews());
     if (action === 'listpendingqualificationdecisions') return readSuccess_(requestId, MidtsWorkspaceReadService.listPendingQualificationDecisions());
     if (action === 'listpendingvendorsafepackages') return readSuccess_(requestId, MidtsWorkspaceReadService.listPendingVendorSafePackages());
     if (action === 'listpendingvendorrequestsetups') return readSuccess_(requestId, MidtsWorkspaceReadService.listPendingVendorRequestSetups());
@@ -60,7 +60,7 @@ var MidtsWebhookRouter = (function () {
 
   function handleTechnicalReview_(payload, requestId) {
     var result = MidtsTechnicalReviewService.recordReview(payload);
-    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:'Technical review recorded. Qualification decision can now be recorded.' }, result)) : MidtsResponseService.failure(result.code, result.message, { requestId:requestId });
+    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:'Partner Technical Assessment recorded. Qualification decision can now be recorded.' }, result)) : MidtsResponseService.failure(result.code, result.message, { requestId:requestId });
   }
   function handleQualificationDecision_(payload, requestId) {
     var result = MidtsDecisionService.applyDecision(payload.leadId || payload.lead_id, payload.decision, payload.reviewer || payload.actor || 'MIDTS Reviewer');
@@ -72,7 +72,7 @@ var MidtsWebhookRouter = (function () {
   }
   function handleVendorRequestSetup_(payload, requestId) {
     var result = MidtsVendorRequestService.createAndSendRequest({ leadId:payload.leadId || payload.lead_id, vendorName:payload.vendorName || payload.vendor_name, vendorEmail:payload.vendorEmail || payload.vendor_email, packageLink:payload.packageLink || payload.package_link, vendorSafeFilesConfirmed:payload.vendorSafeFilesConfirmed || payload.vendor_safe_files_confirmed });
-    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:'Vendor pricing request sent.' }, result)) : MidtsResponseService.failure('VENDOR_REQUEST_SETUP_FAILED', result.message, { requestId:requestId });
+    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:'Vendor request sent for partner assessment and pricing.' }, result)) : MidtsResponseService.failure('VENDOR_REQUEST_SETUP_FAILED', result.message, { requestId:requestId });
   }
 
   function handleMarginReview_(payload, requestId) {
@@ -111,7 +111,7 @@ var MidtsWebhookRouter = (function () {
   }
 
   function parsePostEvent(e) { if (!e) return {}; if (e.postData && e.postData.contents) { var c=e.postData.contents; var t=String(e.postData.type || '').toLowerCase(); if (t.indexOf('application/json') !== -1 || looksLikeJson(c)) return JSON.parse(c); return parseUrlEncoded(c); } return Object.assign({}, e.parameter || {}); }
-  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','listpendingapprovedquotes','listpendingquotesends','listpendingquoteacceptances','listpendingprojectcreations','listpendinginvoices','listpendinginvoicecreations','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
+  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingpartnerassessments','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','listpendingapprovedquotes','listpendingquotesends','listpendingquoteacceptances','listpendingprojectcreations','listpendinginvoices','listpendinginvoicecreations','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
   function isStep2Payload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='step2' || s==='technicalintake'; }
   function isTechnicalReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='technicalreview' || normalizeCompact_(p.action)==='recordtechnicalreview'; }
   function isQualificationDecisionPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='qualificationdecision' || normalizeCompact_(p.action)==='recordqualificationdecision'; }
