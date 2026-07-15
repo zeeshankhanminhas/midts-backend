@@ -7,6 +7,7 @@ var MidtsWebhookRouter = (function () {
       var tokenResult = MidtsTokenService.validate(payload);
       if (!tokenResult.ok) return MidtsResponseService.failure(tokenResult.code, tokenResult.message, { requestId: requestId });
       if (isWorkspaceReadPayload_(payload)) return handleWorkspaceRead_(payload, requestId);
+      if (isQuoteSendPayload_(payload)) return handleQuoteSend_(payload, requestId);
       if (isQuoteDraftReviewPayload_(payload)) return handleQuoteDraftReview_(payload, requestId);
       if (isQuoteBuilderPayload_(payload)) return handleQuoteBuilder_(payload, requestId);
       if (isMarginReviewPayload_(payload)) return handleMarginReview_(payload, requestId);
@@ -45,6 +46,7 @@ var MidtsWebhookRouter = (function () {
     if (action === 'listpendingmarginreviews') return readSuccess_(requestId, MidtsMarginReviewService.listPendingMarginReviews());
     if (action === 'listpendingquotebuilders' || action === 'listpendingquotedrafts') return readSuccess_(requestId, MidtsQuoteBuilderService.listPendingQuoteBuilders());
     if (action === 'listpendingquotedraftreviews') return readSuccess_(requestId, MidtsQuoteDraftReviewService.listPendingQuoteDraftReviews());
+    if (action === 'listpendingapprovedquotes' || action === 'listpendingquotesends') return readSuccess_(requestId, MidtsQuoteSendService.listPendingApprovedQuotes());
     if (action === 'getquotedocument' || action === 'getquotebyid' || action === 'getquotebyleadid') return readSuccess_(requestId, MidtsDocumentService.getQuoteDocument(payload));
     return MidtsResponseService.failure('UNSUPPORTED_WORKSPACE_READ_ACTION', 'Workspace read action is not supported: ' + String(payload.action || ''), { requestId:requestId });
   }
@@ -85,9 +87,13 @@ var MidtsWebhookRouter = (function () {
     var result = MidtsQuoteDraftReviewService.approveQuoteDraft(payload.leadId || payload.lead_id, payload.reviewer || payload.actor || 'MIDTS Quote Reviewer');
     return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:'Quote draft approved. Client-ready PDF generated.' }, result)) : MidtsResponseService.failure(result.code || 'QUOTE_DRAFT_REVIEW_FAILED', result.message, { requestId:requestId });
   }
+  function handleQuoteSend_(payload, requestId) {
+    var result = MidtsQuoteSendService.sendApprovedQuote(payload);
+    return result.ok ? MidtsResponseService.success(Object.assign({ requestId:requestId, message:result.alreadySent ? 'Quote has already been sent to the client.' : 'Approved quote sent to client.' }, result)) : MidtsResponseService.failure(result.code || 'QUOTE_SEND_FAILED', result.message, { requestId:requestId });
+  }
 
   function parsePostEvent(e) { if (!e) return {}; if (e.postData && e.postData.contents) { var c=e.postData.contents; var t=String(e.postData.type || '').toLowerCase(); if (t.indexOf('application/json') !== -1 || looksLikeJson(c)) return JSON.parse(c); return parseUrlEncoded(c); } return Object.assign({}, e.parameter || {}); }
-  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
+  function isWorkspaceReadPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='workspaceread' || ['listpendingtechnicalreviews','listpendingqualificationdecisions','listpendingvendorsafepackages','listpendingvendorrequestsetups','listpendingmarginreviews','listpendingquotebuilders','listpendingquotedrafts','listpendingquotedraftreviews','listpendingapprovedquotes','listpendingquotesends','getquotedocument','getquotebyid','getquotebyleadid'].indexOf(a)!==-1; }
   function isStep2Payload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='step2' || s==='technicalintake'; }
   function isTechnicalReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='technicalreview' || normalizeCompact_(p.action)==='recordtechnicalreview'; }
   function isQualificationDecisionPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='qualificationdecision' || normalizeCompact_(p.action)==='recordqualificationdecision'; }
@@ -96,6 +102,7 @@ var MidtsWebhookRouter = (function () {
   function isMarginReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); var a=normalizeCompact_(p.action || ''); return s==='marginreview' || ['approvemargin','updatemarginreview','rejectmargin','returnmargintovendor'].indexOf(a)!==-1; }
   function isQuoteBuilderPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='quotebuilder' || normalizeCompact_(p.action)==='preparequotedraft'; }
   function isQuoteDraftReviewPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='quotedraftreview' || normalizeCompact_(p.action)==='approvequotedraft'; }
+  function isQuoteSendPayload_(p) { var s=normalizeCompact_(p.formStage || p.form_stage || p.stage || ''); return s==='quotesend' || s==='sendapprovedquote' || normalizeCompact_(p.action)==='sendapprovedquote'; }
   function normalizeCompact_(v) { return String(v || '').trim().toLowerCase().replace(/_/g,'').replace(/-/g,'').replace(/\s+/g,''); }
   function looksLikeJson(v) { var t=String(v || '').trim(); return t.charAt(0)==='{' || t.charAt(0)==='['; }
   function parseUrlEncoded(v) { var r={}; String(v || '').split('&').forEach(function(pair){ if(!pair)return; var p=pair.split('='); r[decodeURIComponent((p[0]||'').replace(/\+/g,' '))]=decodeURIComponent((p.slice(1).join('=')||'').replace(/\+/g,' ')); }); return r; }
