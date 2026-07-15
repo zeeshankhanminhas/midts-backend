@@ -4,10 +4,16 @@ var MidtsPdfRenderService = (function () {
       return { ok: false, message: 'Lead ID, quote reference, and quote source URL are required.' };
     }
 
-    var rendererUrl = MidtsConfig.getRequiredScriptProperty('PDF_RENDERER_URL');
-    var rendererToken = MidtsConfig.getRequiredScriptProperty('PDF_RENDERER_TOKEN');
-    var response;
+    var rendererUrl;
+    var rendererToken;
+    try {
+      rendererUrl = MidtsConfig.getRequiredScriptProperty('PDF_RENDERER_URL');
+      rendererToken = MidtsConfig.getRequiredScriptProperty('PDF_RENDERER_TOKEN');
+    } catch (error) {
+      return { ok: false, message: 'PDF renderer is not configured: ' + errorMessage_(error) };
+    }
 
+    var response;
     try {
       response = UrlFetchApp.fetch(rendererUrl, {
         method: 'post',
@@ -27,9 +33,24 @@ var MidtsPdfRenderService = (function () {
       };
     }
 
+    var blob = response.getBlob();
+    var contentType = String(blob.getContentType() || '').toLowerCase();
+    var bytes = blob.getBytes();
+    if (!bytes || bytes.length < 100) {
+      return { ok: false, message: 'PDF renderer returned an empty or invalid PDF payload.' };
+    }
+    if (contentType.indexOf('text/html') !== -1) {
+      return { ok: false, message: 'PDF renderer returned HTML instead of a PDF. Check the signed quote render URL and Workspace auth configuration.' };
+    }
+
     var fileName = safeFileName_(quoteReference) + '_Approved.pdf';
-    var file = MidtsDriveService.getQuotesFolder(leadId)
-      .createFile(response.getBlob().setName(fileName));
+    var file;
+    try {
+      file = MidtsDriveService.getQuotesFolder(leadId)
+        .createFile(blob.setName(fileName));
+    } catch (error) {
+      return { ok: false, message: 'Approved quote PDF could not be stored in Drive: ' + errorMessage_(error) };
+    }
 
     return {
       ok: true,
