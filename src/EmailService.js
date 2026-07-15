@@ -34,6 +34,52 @@ var MidtsEmailService = (function () {
     }
   }
 
+  function sendApprovedQuoteEmail(leadResult, quoteDocument, sender, clientMessage) {
+    var lead = leadResult && leadResult.lead;
+    var leadId = leadResult && leadResult.leadId;
+    var recipient = lead && lead.email;
+    var quoteReference = String(quoteDocument && quoteDocument['Quote Reference'] || '').trim();
+    var driveFileId = String(quoteDocument && quoteDocument['Drive File ID'] || '').trim();
+    var driveUrl = String(quoteDocument && quoteDocument['Drive URL'] || '').trim();
+    var intakeEmail = getIntakeEmail();
+    var subject = 'MIDTS quote ready - ' + (quoteReference || leadId || 'MIDTS');
+
+    if (!recipient) return { ok: false, status: 'skipped', message: 'No client email address supplied.' };
+    if (!driveFileId) return { ok: false, status: 'skipped', message: 'Approved quote PDF file ID is missing.' };
+
+    var attachment;
+    try {
+      attachment = DriveApp.getFileById(driveFileId).getBlob().setName(safeFileName_(quoteReference || leadId || 'MIDTS_Quote') + '.pdf');
+    } catch (error) {
+      var attachmentMessage = 'Approved quote PDF could not be read from Drive: ' + errorMessage_(error);
+      logEmail(leadResult, recipient, intakeEmail, subject, 'failed', attachmentMessage);
+      return { ok: false, status: 'failed', message: attachmentMessage };
+    }
+
+    var body = buildApprovedQuotePlainTextBody_(lead, leadId, quoteReference, driveUrl, clientMessage);
+    var htmlBody = buildApprovedQuoteHtmlBody_(lead, leadId, quoteReference, driveUrl, clientMessage);
+
+    try {
+      MailApp.sendEmail({
+        to: recipient,
+        bcc: intakeEmail,
+        replyTo: intakeEmail,
+        name: 'MIDTS',
+        subject: subject,
+        body: body,
+        htmlBody: htmlBody,
+        attachments: [attachment]
+      });
+
+      logEmail(leadResult, recipient, intakeEmail, subject, 'sent', 'Approved quote PDF sent to client by ' + (sender || 'MIDTS'));
+      return { ok: true, status: 'sent', message: 'Approved quote PDF sent to client.' };
+    } catch (error) {
+      var message = String(error && error.message ? error.message : error);
+      logEmail(leadResult, recipient, intakeEmail, subject, 'failed', message);
+      return { ok: false, status: 'failed', message: message };
+    }
+  }
+
   function sendInternalReviewNotification(leadResult) {
     logSkippedLegacyEmail_(leadResult, 'Internal Step 2 review notification disabled; Workspace Technical Review queue is source of truth.');
     return { ok: true, status: 'workspace_controlled_skipped', message: 'Workspace Technical Review queue controls this step.' };
@@ -122,6 +168,31 @@ var MidtsEmailService = (function () {
     return paragraphHtml_(lines);
   }
 
+  function buildApprovedQuotePlainTextBody_(lead, leadId, quoteReference, driveUrl, clientMessage) {
+    var intakeEmail = getIntakeEmail();
+    var lines = [
+      'Hello ' + (lead && lead.fullName || 'there') + ',',
+      '',
+      'Please find attached the MIDTS quote for your project.',
+      '',
+      'Reference: ' + (quoteReference || leadId || 'MIDTS quote'),
+      lead && lead.projectType ? 'Project type: ' + lead.projectType : '',
+      clientMessage ? 'Note: ' + clientMessage : '',
+      driveUrl ? 'Quote link: ' + driveUrl : '',
+      '',
+      'Please reply to this email if you would like to proceed or if any clarification is needed.',
+      '',
+      'MIDTS',
+      intakeEmail
+    ];
+    return lines.filter(function (line) { return line !== ''; }).join('\n');
+  }
+
+  function buildApprovedQuoteHtmlBody_(lead, leadId, quoteReference, driveUrl, clientMessage) {
+    var lines = buildApprovedQuotePlainTextBody_(lead, leadId, quoteReference, driveUrl, clientMessage).split('\n');
+    return paragraphHtml_(lines);
+  }
+
   function sheetLeadToEmailLead_(sheetLead) {
     return {
       submissionId: sheetLead['Submission ID'] || '',
@@ -173,12 +244,21 @@ var MidtsEmailService = (function () {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/\"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function safeFileName_(value) {
+    return String(value || 'MIDTS_Quote').replace(/[^A-Za-z0-9._-]/g, '_');
+  }
+
+  function errorMessage_(error) {
+    return String(error && error.message ? error.message : error);
   }
 
   return {
     sendLeadAcknowledgement: sendLeadAcknowledgement,
+    sendApprovedQuoteEmail: sendApprovedQuoteEmail,
     sendInternalReviewNotification: sendInternalReviewNotification,
     sendDecisionOutcomeEmail: sendDecisionOutcomeEmail,
     sendWorkflowActionEmailForLead: sendWorkflowActionEmailForLead,
