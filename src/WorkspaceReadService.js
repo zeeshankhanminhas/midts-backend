@@ -15,6 +15,9 @@ var MidtsWorkspaceReadService = (function () {
     'Scope Revision',
     'Request Token Hash',
     'Request Status',
+    'Partner Assessment Status',
+    'Partner Assessment Link',
+    'Pricing Readiness',
     'Submitted At',
     'Vendor Cost',
     'Vendor Currency',
@@ -31,18 +34,20 @@ var MidtsWorkspaceReadService = (function () {
     var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
     var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
     var reviews = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS, MidtsSheetService.TECHNICAL_REVIEW_HEADERS);
+    var packages = readSheetObjects_(MidtsSheetService.SHEETS.VENDOR_SAFE_PACKAGES, MidtsSheetService.VENDOR_SAFE_PACKAGE_HEADERS);
+    var requests = readSheetObjects_('Vendor Requests', VENDOR_REQUEST_HEADERS);
     var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
     var latestReviewsByLead = latestByLeadId_(reviews, 'Created At');
+    var latestPackagesByLead = latestByLeadId_(packages, 'Created At');
+    var latestRequestsByLead = latestByLeadId_(requests, 'Created At');
 
     var pending = leads.filter(function (lead) {
       var leadId = clean_(lead['Lead ID']);
       if (!leadId) return false;
-      if (!step2Complete_(lead)) return false;
-      if (!pendingReview_(lead)) return false;
-      if (technicalReviewComplete_(lead, latestReviewsByLead[leadId])) return false;
-      return Boolean(latestIntakesByLead[leadId]);
+      return partnerAssessmentPending_(lead, latestRequestsByLead[leadId], latestReviewsByLead[leadId], latestPackagesByLead[leadId]);
     }).map(function (lead) {
-      return toPendingReviewRecord_(lead, latestIntakesByLead[clean_(lead['Lead ID'])]);
+      var leadId = clean_(lead['Lead ID']);
+      return toPendingReviewRecord_(lead, latestIntakesByLead[leadId], latestRequestsByLead[leadId], latestPackagesByLead[leadId]);
     });
 
     pending.sort(function (a, b) {
@@ -59,22 +64,20 @@ var MidtsWorkspaceReadService = (function () {
   function listPendingQualificationDecisions() {
     var leads = readSheetObjects_(MidtsSheetService.SHEETS.LEADS, MidtsSheetService.LEAD_HEADERS);
     var intakes = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_INTAKE, MidtsSheetService.TECHNICAL_INTAKE_HEADERS);
-    var reviews = readSheetObjects_(MidtsSheetService.SHEETS.TECHNICAL_REVIEWS, MidtsSheetService.TECHNICAL_REVIEW_HEADERS);
     var latestIntakesByLead = latestByLeadId_(intakes, 'Completed At');
-    var latestReviewsByLead = latestByLeadId_(reviews, 'Created At');
 
     var pending = leads.filter(function (lead) {
       var leadId = clean_(lead['Lead ID']);
       if (!leadId) return false;
-      if (qualificationDecisionComplete_(lead)) return false;
-      return Boolean(latestReviewsByLead[leadId] && latestReviewsByLead[leadId]['Technical Review ID']);
+      if (!step2Complete_(lead)) return false;
+      return !qualificationDecisionComplete_(lead);
     }).map(function (lead) {
       var leadId = clean_(lead['Lead ID']);
-      return toPendingQualificationRecord_(lead, latestIntakesByLead[leadId], latestReviewsByLead[leadId]);
+      return toPendingQualificationRecord_(lead, latestIntakesByLead[leadId], null);
     });
 
     pending.sort(function (a, b) {
-      return Number(new Date(b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.reviewedAt || a.submittedAt || a.dateCreated || 0));
+      return Number(new Date(b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.submittedAt || a.dateCreated || 0));
     });
 
     return {
@@ -96,8 +99,8 @@ var MidtsWorkspaceReadService = (function () {
     var pending = leads.filter(function (lead) {
       var leadId = clean_(lead['Lead ID']);
       if (!leadId) return false;
-      if (!vendorSafePackagePending_(lead, latestPackagesByLead[leadId])) return false;
-      return latestReviewsByLead[leadId] && clean_(latestReviewsByLead[leadId]['Recommendation']) === 'Qualified';
+      if (clean_(lead['Qualification Decision']) !== 'Qualified') return false;
+      return vendorSafePackagePending_(lead, latestPackagesByLead[leadId]);
     }).map(function (lead) {
       var leadId = clean_(lead['Lead ID']);
       return toVendorSafeRecord_(lead, latestIntakesByLead[leadId], latestReviewsByLead[leadId], latestPackagesByLead[leadId]);
@@ -204,7 +207,7 @@ var MidtsWorkspaceReadService = (function () {
       var leadId = clean_(row['Lead ID']);
       if (!leadId) return map;
       var existing = map[leadId];
-      if (!existing || Number(new Date(row[dateHeader] || 0)) >= Number(new Date(existing[dateHeader] || 0))) {
+      if (!existing || Number(new Date(row[dateHeader] || row['Last Updated At'] || 0)) >= Number(new Date(existing[dateHeader] || existing['Last Updated At'] || 0))) {
         map[leadId] = row;
       }
       return map;
@@ -223,20 +226,32 @@ var MidtsWorkspaceReadService = (function () {
     }, {});
   }
 
-  function toPendingReviewRecord_(lead, intake) {
+  function toPendingReviewRecord_(lead, intake, request, vendorPackage) {
+    intake = intake || {};
+    request = request || {};
+    vendorPackage = vendorPackage || {};
     var rawIntake = parseJson_(intake['Raw Payload JSON']);
-    var submittedAt = intake['Completed At'] || lead['Step 2 Completed At'] || lead['Last Updated At'] || lead['Created At'];
+    var submittedAt = request['Sent At'] || request['Created At'] || intake['Completed At'] || lead['Step 2 Completed At'] || lead['Last Updated At'] || lead['Created At'];
     var filesProvided = intake['Files Provided'] || lead['Files Provided'] || '';
     var fileLinks = splitList_(intake['File Links']);
+    var packageLink = clean_(request['Vendor Package Link']) || clean_(vendorPackage['Drive Folder URL']);
 
     return {
       leadId: clean_(lead['Lead ID']),
       technicalIntakeId: clean_(intake['Technical Intake ID']),
+      reviewRequestId: clean_(request['Request ID']),
+      requestId: clean_(request['Request ID']),
+      sourcePackageId: clean_(request['Source Package ID']) || clean_(vendorPackage['Package ID']),
+      packageId: clean_(vendorPackage['Package ID']),
+      packageLink: packageLink,
+      partnerReviewPackageLink: packageLink,
+      vendorName: clean_(request['Vendor Name']),
+      vendorEmail: clean_(request['Vendor Email']),
       client: clean_(lead['Full Name']),
       personName: clean_(lead['Full Name']),
       company: clean_(lead['Company']),
       email: clean_(lead['Email']),
-      lead: clean_(lead['Brief Requirement']) || clean_(intake['Technical Scope']) || clean_(lead['Project Type']) || 'Technical review',
+      lead: clean_(lead['Quote Reference']) || clean_(lead['Brief Requirement']) || clean_(intake['Technical Scope']) || clean_(lead['Project Type']) || 'Partner assessment',
       projectType: clean_(lead['Project Type']) || clean_(intake['Service Type']),
       briefRequirement: clean_(lead['Brief Requirement']),
       technicalRequirement: clean_(intake['Technical Scope']),
@@ -246,16 +261,18 @@ var MidtsWorkspaceReadService = (function () {
       filesProvided: filesProvided,
       fileLinks: fileLinks,
       lifecycleStatus: clean_(lead['Lifecycle Status']),
-      reviewStatus: clean_(lead['Review Status']),
-      status: clean_(lead['Review Status']) || clean_(lead['Lifecycle Status']),
+      reviewStatus: clean_(request['Partner Assessment Status']) || clean_(lead['Review Status']),
+      requestStatus: clean_(request['Request Status']),
+      status: clean_(request['Partner Assessment Status']) || clean_(request['Request Status']) || clean_(lead['Vendor Pricing Status']) || clean_(lead['Lifecycle Status']),
       submittedAt: toIso_(submittedAt),
       dateCreated: toIso_(lead['Created At'])
     };
   }
 
   function toPendingQualificationRecord_(lead, intake, review) {
+    review = review || {};
     var reviewCreatedAt = review['Created At'] || review['Approved At'] || lead['Last Updated At'] || lead['Created At'];
-    var base = intake ? toPendingReviewRecord_(lead, intake) : {
+    var base = intake ? toPendingReviewRecord_(lead, intake, null, null) : {
       leadId: clean_(lead['Lead ID']),
       technicalIntakeId: '',
       client: clean_(lead['Full Name']),
@@ -283,7 +300,7 @@ var MidtsWorkspaceReadService = (function () {
     base.reviewerOrganisation = clean_(review['Reviewer Organisation']);
     base.reviewerEmail = clean_(review['Reviewer Email']);
     base.filesAndRevisionsReviewed = clean_(review['Files And Revisions Reviewed']);
-    base.partnerReviewPackageLink = clean_(review['Partner Review Package Link']);
+    base.partnerReviewPackageLink = clean_(review['Partner Review Package Link']) || base.partnerReviewPackageLink || '';
     base.partnerAssessmentDocumentLink = clean_(review['Partner Assessment Document Link']);
     base.feasibilityStatus = clean_(review['Feasibility Status']);
     base.partnerSubmittedAt = toIso_(review['Partner Submitted At']);
@@ -313,10 +330,10 @@ var MidtsWorkspaceReadService = (function () {
   }
 
   function toVendorRequestRecord_(lead, intake, review, vendorPackage, request) {
-    var base = review ? toPendingQualificationRecord_(lead, intake, review) : toPendingReviewRecord_(lead, intake || {});
+    var base = review && clean_(review['Technical Review ID']) ? toPendingQualificationRecord_(lead, intake, review) : toPendingReviewRecord_(lead, intake || {}, request || {}, vendorPackage || {});
     base.packageId = vendorPackage ? clean_(vendorPackage['Package ID']) : '';
     base.packageStatus = vendorPackage ? clean_(vendorPackage['Package Status']) : '';
-    base.packageLink = vendorPackage ? clean_(vendorPackage['Drive Folder URL']) : '';
+    base.packageLink = vendorPackage ? clean_(vendorPackage['Drive Folder URL']) : base.packageLink || '';
     base.vendorPricingStatus = clean_(lead['Vendor Pricing Status']);
     base.vendorSafePackageReady = clean_(lead['Vendor Safe Package Ready']);
     base.requestId = request ? clean_(request['Request ID']) : '';
@@ -371,12 +388,8 @@ var MidtsWorkspaceReadService = (function () {
     return equivalent_(lead['Step 2 Status'], ['completed']) || equivalent_(lead['Status'], ['step 2 completed']) || Boolean(lead['Step 2 Completed At']);
   }
 
-  function pendingReview_(lead) {
-    return equivalent_(lead['Review Status'], ['pending review', 'pending', 'awaiting review']) || equivalent_(lead['Lifecycle Status'], ['pending review']);
-  }
-
   function technicalReviewComplete_(lead, review) {
-    return equivalent_(lead['Review Status'], ['technical review complete', 'completed', 'complete']) || Boolean(review && review['Technical Review ID']);
+    return equivalent_(lead['Review Status'], ['partner technical assessment complete', 'technical review complete', 'completed', 'complete']) || Boolean(review && review['Technical Review ID']);
   }
 
   function qualificationDecisionComplete_(lead) {
@@ -392,9 +405,18 @@ var MidtsWorkspaceReadService = (function () {
 
   function vendorRequestSetupPending_(lead, request) {
     if (!isYes_(lead['Vendor Pricing Required'])) return false;
-    if (request && ['Pending Send', 'Sent'].indexOf(clean_(request['Request Status'])) !== -1) return false;
+    if (request && ['Pending Send', 'Sent', 'Assessment Received'].indexOf(clean_(request['Request Status'])) !== -1) return false;
     if (isYes_(lead['Vendor Safe Package Required']) && !isYes_(lead['Vendor Safe Package Ready'])) return false;
     return equivalent_(lead['Vendor Pricing Status'], ['contact vendor', 'waiting vendor price']) || equivalent_(lead['Next Action'], ['contact vendor']);
+  }
+
+  function partnerAssessmentPending_(lead, request, review, vendorPackage) {
+    if (!request || !clean_(request['Request ID'])) return false;
+    if (technicalReviewComplete_(lead, review)) return false;
+    if (clean_(request['Technical Review ID'])) return false;
+    if (['Sent', 'Assessment Requested', 'Pending Partner Assessment'].indexOf(clean_(request['Request Status'])) === -1) return false;
+    if (!clean_(request['Vendor Package Link']) && !(vendorPackage && clean_(vendorPackage['Drive Folder URL']))) return false;
+    return true;
   }
 
   function quoteBuilderPending_(lead) {
