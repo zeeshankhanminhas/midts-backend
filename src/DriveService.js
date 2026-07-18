@@ -6,6 +6,7 @@ var MidtsDriveService = (function () {
     var leadFolder = getOrCreateFolder_(root, 'Lead_' + leadId);
     var vendorSafeFolder = getOrCreateFolder_(leadFolder, 'Vendor Safe');
     var quotesFolder = getOrCreateFolder_(leadFolder, 'Quotes');
+    var partnerAssessmentFolder = getOrCreateFolder_(leadFolder, 'Partner Assessments');
 
     return {
       leadFolderId: leadFolder.getId(),
@@ -13,7 +14,9 @@ var MidtsDriveService = (function () {
       vendorSafeFolderId: vendorSafeFolder.getId(),
       vendorSafeFolderUrl: vendorSafeFolder.getUrl(),
       quotesFolderId: quotesFolder.getId(),
-      quotesFolderUrl: quotesFolder.getUrl()
+      quotesFolderUrl: quotesFolder.getUrl(),
+      partnerAssessmentFolderId: partnerAssessmentFolder.getId(),
+      partnerAssessmentFolderUrl: partnerAssessmentFolder.getUrl()
     };
   }
 
@@ -65,6 +68,11 @@ var MidtsDriveService = (function () {
   function getVendorSafeFolder(leadId) {
     var structure = ensureLeadStructure(leadId);
     return DriveApp.getFolderById(structure.vendorSafeFolderId);
+  }
+
+  function getPartnerAssessmentFolder(leadId) {
+    var structure = ensureLeadStructure(leadId);
+    return DriveApp.getFolderById(structure.partnerAssessmentFolderId);
   }
 
   function getVendorSafePackageFolder(leadId, packageId) {
@@ -165,6 +173,7 @@ var MidtsDriveService = (function () {
     saveClientIntakeFiles: saveClientIntakeFiles,
     getQuotesFolder: getQuotesFolder,
     getVendorSafeFolder: getVendorSafeFolder,
+    getPartnerAssessmentFolder: getPartnerAssessmentFolder,
     getVendorSafePackageFolder: getVendorSafePackageFolder,
     createGoogleDocInFolder: createGoogleDocInFolder,
     copyFilesByUrl: copyFilesByUrl
