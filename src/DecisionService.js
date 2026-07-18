@@ -29,9 +29,6 @@ var MidtsDecisionService = (function () {
     var guardResult = guardExistingDecision_(existing, normalizedDecision, decisionLabel, reviewer);
     if (guardResult) return guardResult;
 
-    var technicalReviewGuard = guardTechnicalReview_(existing, normalizedDecision);
-    if (technicalReviewGuard) return technicalReviewGuard;
-
     var now = new Date();
     var updates = buildDecisionUpdates_(normalizedDecision, decisionLabel, reviewer, now, existing.lead);
     var updatedLead = MidtsSheetService.updateLeadById(leadId, updates);
@@ -64,68 +61,6 @@ var MidtsDecisionService = (function () {
       nextAction: updates['Next Action'],
       outcomeEmailStatus: outcomeEmailResult.status,
       updates: updates
-    };
-  }
-
-  function guardTechnicalReview_(existing, decisionKey) {
-    if (decisionKey === 'nurture') return null;
-
-    var lead = existing.lead;
-    var reviewResult = MidtsSheetService.findLatestTechnicalReviewByLeadId(lead['Lead ID']);
-    if (!reviewResult) {
-      return {
-        ok: false,
-        blocked: true,
-        leadId: lead['Lead ID'],
-        message: 'A completed Partner Technical Assessment is required before this qualification decision.'
-      };
-    }
-
-    var recommendation = String(reviewResult.review['Recommendation'] || '').trim();
-    var evidenceGuard = guardCompletePartnerAssessment_(reviewResult.review);
-    if (evidenceGuard) {
-      evidenceGuard.leadId = lead['Lead ID'];
-      return evidenceGuard;
-    }
-
-    var expected = {
-      qualified: 'Qualified',
-      'needs-more-info': 'Needs More Info',
-      'not-suitable': 'Not Suitable'
-    }[decisionKey];
-
-    if (expected && recommendation !== expected) {
-      return {
-        ok: false,
-        blocked: true,
-        leadId: lead['Lead ID'],
-        message: 'Partner Technical Assessment recommendation is ' + (recommendation || 'blank') + '; it must be ' + expected + ' for this decision.'
-      };
-    }
-    return null;
-  }
-
-  function guardCompletePartnerAssessment_(review) {
-    var required = {
-      'Reviewer': 'Partner assessor name is required on the completed assessment.',
-      'Reviewer Organisation': 'Partner organisation is required on the completed assessment.',
-      'Files And Revisions Reviewed': 'Files and revisions assessed are required on the completed assessment.',
-      'Partner Assessment Document Link': 'Partner assessment document link is required on the completed assessment.',
-      'Feasibility Status': 'Feasibility status is required on the completed assessment.',
-      'Recommendation': 'Business recommendation is required on the completed assessment.'
-    };
-    var missing = [];
-    Object.keys(required).forEach(function (header) {
-      if (!String(review[header] || '').trim()) missing.push(required[header]);
-    });
-    if (!String(review['Approved At'] || review['Partner Submitted At'] || '').trim()) {
-      missing.push('Completed/submitted timestamp is required on the completed assessment.');
-    }
-    if (!missing.length) return null;
-    return {
-      ok: false,
-      blocked: true,
-      message: 'Qualification is blocked because the Partner Technical Assessment is incomplete: ' + missing.join(' ')
     };
   }
 
@@ -248,7 +183,7 @@ var MidtsDecisionService = (function () {
       'Info Request Status': '',
       'Nurture Status': '',
       'Final Outcome': 'Not Suitable',
-      'Close Reason': 'Marked not suitable from review decision',
+      'Close Reason': 'Marked not suitable from qualification decision',
       'Closed At': now
     });
   }
