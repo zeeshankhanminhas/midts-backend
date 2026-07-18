@@ -6,10 +6,8 @@ var MidtsVendorSafePackageService = (function () {
     if (String(leadResult.lead['Lifecycle Status'] || '') !== 'Vendor Safe Review') {
       return { ok:false, code:'LEAD_NOT_READY', message:'Lead must be in Vendor Safe Review.' };
     }
-
-    var review = MidtsSheetService.findLatestTechnicalReviewByLeadId(leadId);
-    if (!review || String(review.review['Recommendation'] || '') !== 'Qualified') {
-      return { ok:false, code:'TECHNICAL_REVIEW_REQUIRED', message:'A Qualified Technical Review is required.' };
+    if (String(leadResult.lead['Qualification Decision'] || '') !== 'Qualified' || String(leadResult.lead['Status'] || '') !== 'Qualified') {
+      return { ok:false, code:'QUALIFICATION_REQUIRED', message:'A Qualified commercial qualification decision is required before vendor-safe package generation.' };
     }
 
     var intakeResult = MidtsSheetService.findLatestTechnicalIntakeByLeadId(leadId);
@@ -31,6 +29,7 @@ var MidtsVendorSafePackageService = (function () {
           driveFolderUrl:previous.vendorSafePackage['Drive Folder URL'],
           package:previousManifest,
           generatedDocuments:previousManifest.generatedDocuments || [],
+          generatedPdfs:previousManifest.generatedPdfs || pdfsFromDocuments_(previousManifest.generatedDocuments || []),
           copiedClientFiles:previousManifest.clientFiles || []
         };
       }
@@ -48,14 +47,16 @@ var MidtsVendorSafePackageService = (function () {
       return { ok:false, code:'VSP_CLIENT_FILE_COPY_FAILED', message:'One or more Step 2 files could not be copied into the vendor-safe package. Check Drive permissions and source file links before sending to vendors.', copiedClientFiles:copiedClientFiles };
     }
 
-    var packageData = buildPackageData_(packageId, now, leadResult.lead, intake, review.review, successfulClientFiles, packageFolder.getUrl(), sourceFileLinks);
-    var generatedDocs = generatePackageDocs_(packageFolder, packageData, leadResult.lead, intake, review.review);
-    if (generatedDocs.length < 7) {
-      return { ok:false, code:'VSP_DOCUMENT_GENERATION_INCOMPLETE', message:'Vendor-safe package documents were not fully generated. Do not send this package to vendors.', generatedDocuments:generatedDocs };
+    var packageData = buildPackageData_(packageId, now, leadResult.lead, intake, successfulClientFiles, packageFolder.getUrl(), sourceFileLinks);
+    var generatedDocs = generatePackageDocs_(packageFolder, packageData, leadResult.lead, intake);
+    var generatedPdfs = pdfsFromDocuments_(generatedDocs);
+    if (generatedDocs.length < 7 || generatedPdfs.length < 7) {
+      return { ok:false, code:'VSP_DOCUMENT_GENERATION_INCOMPLETE', message:'Vendor-safe package documents and PDFs were not fully generated. Do not send this package to partners.', generatedDocuments:generatedDocs, generatedPdfs:generatedPdfs };
     }
 
     var manifest = Object.assign({}, packageData, {
       generatedDocuments: generatedDocs,
+      generatedPdfs: generatedPdfs,
       clientFiles: successfulClientFiles,
       clientFilesFolderUrl: clientFilesFolder.getUrl(),
       midtsFilesFolderUrl: midtsFilesFolder.getUrl()
@@ -65,7 +66,7 @@ var MidtsVendorSafePackageService = (function () {
     MidtsSheetService.appendVendorSafePackageRow([
       packageId,
       leadId,
-      review.review['Technical Review ID'] || '',
+      '',
       now,
       reviewer || 'Vendor Safe Review',
       'Approved for Vendor Pricing',
@@ -82,25 +83,33 @@ var MidtsVendorSafePackageService = (function () {
       driveFolderUrl:packageFolder.getUrl(),
       package:manifest,
       generatedDocuments:generatedDocs,
+      generatedPdfs:generatedPdfs,
       copiedClientFiles:successfulClientFiles
     };
   }
 
-  function buildPackageData_(packageId, now, lead, intake, review, copiedClientFiles, folderUrl, sourceFileLinks) {
+  function buildPackageData_(packageId, now, lead, intake, copiedClientFiles, folderUrl, sourceFileLinks) {
     return {
-      schemaVersion:'2.1',
+      schemaVersion:'3.0',
       packageType:'vendor-safe-procurement-package',
       packageId:packageId,
       packageRevision:'1',
       issueDate:Utilities.formatDate(now, 'Europe/London', 'dd MMM yyyy HH:mm'),
       preparedBy:'MIDTS',
-      preparedFor:'Approved manufacturing vendor',
+      preparedFor:'Approved manufacturing partner',
       folderUrl:folderUrl,
       leadId:String(lead['Lead ID'] || ''),
       quoteReference:String(lead['Quote Reference'] || ''),
       projectType:String(lead['Project Type'] || intake['Service Type'] || ''),
       scopeOfWork:String(intake['Technical Scope'] || lead['Brief Requirement'] || ''),
       sourceFileLinks:sourceFileLinks || [],
+      commercialQualification:{
+        decision:String(lead['Qualification Decision'] || ''),
+        reviewer:String(lead['Reviewer'] || ''),
+        decisionTimestamp:String(lead['Decision Timestamp'] || ''),
+        notes:String(lead['Review Notes'] || ''),
+        status:String(lead['Status'] || '')
+      },
       clientRequirements:{
         briefRequirement:String(lead['Brief Requirement'] || ''),
         materials:String(intake['Materials'] || ''),
@@ -111,16 +120,9 @@ var MidtsVendorSafePackageService = (function () {
         filesProvided:String(intake['Files Provided'] || ''),
         confidentialityNotes:String(intake['Confidentiality Notes'] || '')
       },
-      technicalReview:{
-        technicalReviewId:String(review['Technical Review ID'] || ''),
-        summary:String(review['Review Summary'] || ''),
-        fileReview:String(review['File Review'] || ''),
-        risks:String(review['Risks'] || ''),
-        clarifications:String(review['Clarifications'] || ''),
-        recommendation:String(review['Recommendation'] || '')
-      },
       vendorInstructions:[
-        'Review the full package before pricing.',
+        'Review the full package before technical assessment and pricing.',
+        'Submit Partner Technical Assessment before submitting commercial pricing.',
         'Quote must include lead time, currency, assumptions, exclusions, and validity period.',
         'Do not contact the client directly. All questions must be sent to MIDTS.',
         'Do not share package files outside your organisation without MIDTS written approval.',
@@ -136,10 +138,9 @@ var MidtsVendorSafePackageService = (function () {
     };
   }
 
-  function generatePackageDocs_(folder, data, lead, intake, review) {
+  function generatePackageDocs_(folder, data, lead, intake) {
     var docs = [];
     var requirementSheet = MidtsDocumentAdapterService.toRequirementSheetData(lead, intake, { reference:data.packageId + '-REQ', revision:data.packageRevision, status:'issued' });
-    var technicalReview = MidtsDocumentAdapterService.toTechnicalReviewData(lead, intake, review, { reference:data.packageId + '-TR', revision:data.packageRevision, status:'issued' });
 
     docs.push(createDoc_(folder, '01 Cover Sheet - ' + data.packageId, [
       { heading:'Document Control', lines:[
@@ -155,7 +156,7 @@ var MidtsVendorSafePackageService = (function () {
       { heading:'Package Contents', lines:[
         '02 Scope of Work',
         '03 Client Requirements',
-        '04 Technical Review',
+        '04 Commercial Qualification',
         '05 Vendor Instructions',
         '06 RFQ Response Template',
         '07 Document Register',
@@ -167,8 +168,8 @@ var MidtsVendorSafePackageService = (function () {
 
     docs.push(createDoc_(folder, '02 Scope of Work - ' + data.packageId, [
       { heading:'Scope of Work', lines:[data.scopeOfWork || 'Scope not recorded.'] },
-      { heading:'Manufacturing Objective', lines:['Vendor to review the supplied requirement and files and provide a commercial quotation based on stated assumptions.'] },
-      { heading:'Deliverables Requested', lines:['Vendor pricing response', 'Lead time', 'Assumptions and exclusions', 'Questions or missing information'] },
+      { heading:'Manufacturing Objective', lines:['Partner to review the supplied requirement and files, record technical feasibility, and then provide pricing only when the assessment basis is feasible and pricing-ready.'] },
+      { heading:'Deliverables Requested', lines:['Partner Technical Assessment', 'Vendor pricing response after assessment approval', 'Lead time', 'Assumptions and exclusions', 'Questions or missing information'] },
       { heading:'Commercial Assumptions', lines:['Pricing must include what is included and excluded. Do not assume MIDTS or client approval of production without written confirmation.'] }
     ]));
 
@@ -181,27 +182,31 @@ var MidtsVendorSafePackageService = (function () {
       { heading:'Open Questions', lines:requirementSheet.openQuestions && requirementSheet.openQuestions.length ? requirementSheet.openQuestions : ['None recorded'] }
     ]));
 
-    docs.push(createDoc_(folder, '04 Technical Review - ' + data.packageId, [
-      { heading:'Document Data Source', lines:['Generated from MIDTS Document Adapter: technicalReview', 'Reference: ' + technicalReview.reference, 'Revision: ' + technicalReview.revision, 'Status: ' + technicalReview.status] },
-      { heading:'Review Summary', lines:[technicalReview.reviewSummary || 'Not recorded'] },
-      { heading:'File Review', lines:(technicalReview.fileReview || []).map(function (row) { return row.area + ': ' + row.finding + ' [' + row.status + ']'; }) },
-      { heading:'Risks', lines:technicalReview.risks && technicalReview.risks.length ? technicalReview.risks : ['None recorded'] },
-      { heading:'Clarifications', lines:technicalReview.clarifications && technicalReview.clarifications.length ? technicalReview.clarifications : ['None recorded'] },
-      { heading:'Recommendation', lines:[technicalReview.recommendation || 'Not recorded'] }
+    docs.push(createDoc_(folder, '04 Commercial Qualification - ' + data.packageId, [
+      { heading:'Commercial Qualification', lines:[
+        'Decision: ' + (data.commercialQualification.decision || 'Not recorded'),
+        'Status: ' + (data.commercialQualification.status || 'Not recorded'),
+        'Reviewer: ' + (data.commercialQualification.reviewer || 'Not recorded'),
+        'Decision timestamp: ' + (data.commercialQualification.decisionTimestamp || 'Not recorded')
+      ]},
+      { heading:'Qualification Notes', lines:[data.commercialQualification.notes || 'No internal qualification notes recorded for partner package.'] },
+      { heading:'Control Statement', lines:['This record confirms MIDTS has commercially qualified the enquiry for partner technical assessment. It is not a partner feasibility assessment and does not approve production.'] }
     ]));
 
     docs.push(createDoc_(folder, '05 Vendor Instructions - ' + data.packageId, [
       { heading:'Instructions', lines:data.vendorInstructions },
       { heading:'Required Quote Response', lines:[
+        'Partner Technical Assessment must be submitted first.',
         'Unit price or total price.',
         'Tooling/NRE cost if applicable.',
         'Minimum order quantity if applicable.',
         'Lead time.',
         'Quote validity period.',
         'Material and process assumptions.',
+        'Manufacturing process.',
         'Inspection/certification included or excluded.',
         'Delivery/shipping assumptions.',
-        'Questions or missing information.'
+        'Questions for MIDTS.'
       ]}
     ]));
 
@@ -229,7 +234,7 @@ var MidtsVendorSafePackageService = (function () {
       '01 Cover Sheet - Generated by MIDTS',
       '02 Scope of Work - Generated by MIDTS',
       '03 Client Requirements - Generated from Step 1 and Step 2',
-      '04 Technical Review - Generated from MIDTS review record',
+      '04 Commercial Qualification - Generated from Workspace qualification decision',
       '05 Vendor Instructions - MIDTS standard instructions',
       '06 RFQ Response Template - Vendor response structure'
     ].concat((data.copiedClientFiles || []).map(function (file, index) {
@@ -238,6 +243,7 @@ var MidtsVendorSafePackageService = (function () {
 
     docs.push(createDoc_(folder, '07 Document Register - ' + data.packageId, [
       { heading:'Register', lines:registerLines },
+      { heading:'Generated PDFs', lines:docs.map(function (doc) { return doc.pdfName + ': ' + doc.pdfUrl; }) },
       { heading:'Source File Links', lines:data.sourceFileLinks && data.sourceFileLinks.length ? data.sourceFileLinks : ['No source file links recorded'] }
     ]));
 
@@ -251,8 +257,15 @@ var MidtsVendorSafePackageService = (function () {
   function packageManifestLooksComplete_(manifest, expectedClientFileCount) {
     if (!manifest) return false;
     if (!Array.isArray(manifest.generatedDocuments) || manifest.generatedDocuments.length < 7) return false;
+    if (pdfsFromDocuments_(manifest.generatedDocuments).length < 7 && (!Array.isArray(manifest.generatedPdfs) || manifest.generatedPdfs.length < 7)) return false;
     if (expectedClientFileCount && (!Array.isArray(manifest.clientFiles) || manifest.clientFiles.length < expectedClientFileCount)) return false;
     return true;
+  }
+
+  function pdfsFromDocuments_(documents) {
+    return (documents || []).filter(function (doc) { return doc && doc.pdfUrl; }).map(function (doc) {
+      return { name:doc.pdfName || (doc.name ? doc.name + '.pdf' : 'Generated PDF'), id:doc.pdfId || '', url:doc.pdfUrl || '', mimeType:doc.pdfMimeType || 'application/pdf' };
+    });
   }
 
   function validDriveLinks_(links) {
