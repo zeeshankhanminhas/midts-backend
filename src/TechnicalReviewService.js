@@ -16,47 +16,15 @@ var MidtsTechnicalReviewService = (function () {
   ];
 
   var TECHNICAL_REVIEW_HEADERS = [
-    'Technical Review ID',
-    'Lead ID',
-    'Technical Intake ID',
-    'Created At',
-    'Reviewer Type',
-    'Reviewer',
-    'Reviewer Organisation',
-    'Reviewer Email',
-    'Review Request ID',
-    'Source Package ID',
-    'Assessment Scope',
-    'Files Reviewed',
-    'File Review',
-    'Files And Revisions Reviewed',
-    'Drawing Revision Reviewed',
-    'Partner Review Package Link',
-    'Partner Assessment Document Link',
-    'Feasibility Status',
-    'Technical Outcome',
-    'Proposed Process',
-    'Machine/Axis Requirement',
-    'Critical Features',
-    'Manufacturing Risks',
-    'Inspection Requirements',
-    'Assumptions',
-    'Clarifications Required',
-    'Estimated Engineering Hours',
-    'Estimated Lead Time',
-    'Deliverables',
-    'Partner Declaration',
-    'Partner Submitted At',
-    'Review Valid Until',
-    'Review Status',
-    'Review Summary',
-    'Risks',
-    'Clarifications',
-    'MIDTS Qualification Recommendation',
-    'Recommendation',
-    'Internal Notes',
-    'Approved At',
-    'Last Updated At'
+    'Technical Review ID', 'Lead ID', 'Technical Intake ID', 'Created At', 'Reviewer Type', 'Reviewer',
+    'Reviewer Organisation', 'Reviewer Email', 'Review Request ID', 'Source Package ID', 'Assessment Scope',
+    'Files Reviewed', 'File Review', 'Files And Revisions Reviewed', 'Drawing Revision Reviewed',
+    'Partner Review Package Link', 'Partner Assessment Document Link', 'Feasibility Status', 'Technical Outcome',
+    'Proposed Process', 'Machine/Axis Requirement', 'Critical Features', 'Manufacturing Risks',
+    'Inspection Requirements', 'Assumptions', 'Clarifications Required', 'Estimated Engineering Hours',
+    'Estimated Lead Time', 'Deliverables', 'Partner Declaration', 'Partner Submitted At', 'Review Valid Until',
+    'Review Status', 'Review Summary', 'Risks', 'Clarifications', 'MIDTS Qualification Recommendation',
+    'Recommendation', 'Internal Notes', 'Approved At', 'Last Updated At'
   ];
 
   function recordReview(input) {
@@ -68,7 +36,8 @@ var MidtsTechnicalReviewService = (function () {
     if (!leadResult) return { ok: false, code: 'LEAD_NOT_FOUND', message: 'Lead not found: ' + leadId };
 
     var reviewRequestId = clean_(input.reviewRequestId || input.review_request_id || input.vendorRequestId || input.vendor_request_id);
-    var bridgeAssessment = Boolean(reviewRequestId || clean_(input.sourcePackageId || input.source_package_id || input.vendorSafePackageId || input.vendor_safe_package_id));
+    var sourcePackageId = clean_(input.sourcePackageId || input.source_package_id || input.vendorSafePackageId || input.vendor_safe_package_id);
+    var bridgeAssessment = Boolean(reviewRequestId || sourcePackageId);
     var lifecycle = clean_(leadResult.lead['Lifecycle Status']);
     if (!bridgeAssessment && lifecycle !== 'Pending Review') {
       return { ok: false, code: 'LEAD_NOT_READY_FOR_TECHNICAL_REVIEW', message: 'Lead must be Pending Review before a partner technical assessment can be recorded.' };
@@ -84,13 +53,12 @@ var MidtsTechnicalReviewService = (function () {
     var reviewer = clean_(input.reviewer || input.partnerReviewer || input.partner_reviewer || input.assessorName || input.assessor_name);
     var reviewerOrganisation = clean_(input.reviewerOrganisation || input.reviewer_organisation || input.partnerOrganisation || input.partner_organisation || input.partnerName || input.partner_name);
     var reviewerEmail = clean_(input.reviewerEmail || input.reviewer_email || input.partnerReviewerEmail || input.partner_reviewer_email || input.partnerEmail || input.partner_email);
-    var sourcePackageId = clean_(input.sourcePackageId || input.source_package_id || input.vendorSafePackageId || input.vendor_safe_package_id);
     var assessmentScope = clean_(input.assessmentScope || input.assessment_scope || input.reviewScope || input.review_scope);
     var filesAndRevisionsReviewed = clean_(input.filesAndRevisionsReviewed || input.files_and_revisions_reviewed || input.fileReview || input.file_review);
     var filesReviewed = normalizeList_(input.filesReviewed || input.files_reviewed || filesAndRevisionsReviewed);
     var drawingRevisionReviewed = clean_(input.drawingRevisionReviewed || input.drawing_revision_reviewed);
     var partnerReviewPackageLink = clean_(input.partnerReviewPackageLink || input.partner_review_package_link || input.reviewPackageLink || input.review_package_link);
-    var partnerAssessmentDocumentLink = clean_(input.partnerAssessmentDocumentLink || input.partner_assessment_document_link || input.assessmentDocumentLink || input.assessment_document_link);
+    var originalPartnerAssessmentLink = clean_(input.partnerAssessmentDocumentLink || input.partner_assessment_document_link || input.assessmentDocumentLink || input.assessment_document_link);
     var feasibilityStatus = normalizeFeasibility_(input.feasibilityStatus || input.feasibility_status || input.technicalOutcome || input.technical_outcome);
     var proposedProcess = clean_(input.proposedProcess || input.proposed_process || input.recommendedApproach || input.recommended_approach);
     var machineAxisRequirement = clean_(input.machineAxisRequirement || input.machine_axis_requirement);
@@ -113,71 +81,50 @@ var MidtsTechnicalReviewService = (function () {
     var clarifications = normalizeList_(input.clarifications || clarificationsRequired);
     var fileReview = normalizeList_(input.fileReview || input.file_review || filesAndRevisionsReviewed);
 
-    var validation = validateAssessment_({
-      reviewerType: reviewerType,
-      reviewer: reviewer,
-      reviewerOrganisation: reviewerOrganisation,
-      reviewerEmail: reviewerEmail,
-      assessmentScope: assessmentScope,
-      filesAndRevisionsReviewed: filesAndRevisionsReviewed,
-      partnerReviewPackageLink: partnerReviewPackageLink,
-      partnerAssessmentDocumentLink: partnerAssessmentDocumentLink,
-      feasibilityStatus: feasibilityStatus,
-      partnerSubmittedAt: partnerSubmittedAt,
-      summary: summary,
-      businessRecommendation: businessRecommendation,
-      risks: risks,
-      assumptions: assumptions,
-      internalNotes: internalNotes,
-      partnerDeclaration: partnerDeclaration
-    });
+    var validation = validateAssessment_({ reviewerType: reviewerType, reviewer: reviewer, reviewerOrganisation: reviewerOrganisation, reviewerEmail: reviewerEmail, assessmentScope: assessmentScope, filesAndRevisionsReviewed: filesAndRevisionsReviewed, partnerReviewPackageLink: partnerReviewPackageLink, partnerAssessmentDocumentLink: originalPartnerAssessmentLink, feasibilityStatus: feasibilityStatus, partnerSubmittedAt: partnerSubmittedAt, summary: summary, businessRecommendation: businessRecommendation, risks: risks, assumptions: assumptions, internalNotes: internalNotes, partnerDeclaration: partnerDeclaration });
     if (!validation.ok) return validation;
 
     var now = new Date();
     var reviewId = 'PTA-' + Utilities.formatDate(now, 'Europe/London', 'yyyyMMddHHmmss') + '-' + Math.floor(Math.random() * 9000 + 1000);
+    var generatedReport = generateAssessmentReport_(reviewId, leadResult.lead, intakeResult.intake, {
+      reviewerType: reviewerType,
+      reviewer: reviewer,
+      reviewerOrganisation: reviewerOrganisation,
+      reviewerEmail: reviewerEmail,
+      reviewRequestId: reviewRequestId,
+      sourcePackageId: sourcePackageId,
+      assessmentScope: assessmentScope,
+      filesAndRevisionsReviewed: filesAndRevisionsReviewed,
+      partnerReviewPackageLink: partnerReviewPackageLink,
+      originalPartnerAssessmentLink: originalPartnerAssessmentLink,
+      feasibilityStatus: feasibilityStatus,
+      proposedProcess: proposedProcess,
+      machineAxisRequirement: machineAxisRequirement,
+      criticalFeatures: criticalFeatures,
+      manufacturingRisks: manufacturingRisks,
+      inspectionRequirements: inspectionRequirements,
+      assumptions: assumptions,
+      clarificationsRequired: clarificationsRequired,
+      estimatedEngineeringHours: estimatedEngineeringHours,
+      estimatedLeadTime: estimatedLeadTime,
+      deliverables: deliverables,
+      partnerSubmittedAt: partnerSubmittedAt,
+      reviewValidUntil: reviewValidUntil,
+      summary: summary,
+      recommendation: businessRecommendation,
+      internalNotes: internalNotes
+    });
+    if (!generatedReport.ok) return generatedReport;
+    var partnerAssessmentDocumentLink = generatedReport.pdfUrl || generatedReport.url || originalPartnerAssessmentLink;
 
     appendTechnicalReviewRow_([
-      reviewId,
-      leadId,
-      intakeResult.intake['Technical Intake ID'] || '',
-      now,
-      reviewerType,
-      reviewer,
-      reviewerOrganisation,
-      reviewerEmail,
-      reviewRequestId,
-      sourcePackageId,
-      assessmentScope,
-      JSON.stringify(filesReviewed),
-      JSON.stringify(fileReview),
-      filesAndRevisionsReviewed,
-      drawingRevisionReviewed,
-      partnerReviewPackageLink,
-      partnerAssessmentDocumentLink,
-      feasibilityStatus,
-      feasibilityStatus,
-      proposedProcess,
-      machineAxisRequirement,
-      JSON.stringify(criticalFeatures),
-      JSON.stringify(manufacturingRisks),
-      JSON.stringify(inspectionRequirements),
-      JSON.stringify(assumptions),
-      JSON.stringify(clarificationsRequired),
-      estimatedEngineeringHours,
-      estimatedLeadTime,
-      JSON.stringify(deliverables),
-      partnerDeclaration,
-      partnerSubmittedAt,
-      reviewValidUntil,
-      'Completed',
-      summary,
-      JSON.stringify(risks),
-      JSON.stringify(clarifications),
-      businessRecommendation,
-      businessRecommendation,
-      internalNotes,
-      now,
-      now
+      reviewId, leadId, intakeResult.intake['Technical Intake ID'] || '', now, reviewerType, reviewer, reviewerOrganisation, reviewerEmail,
+      reviewRequestId, sourcePackageId, assessmentScope, JSON.stringify(filesReviewed), JSON.stringify(fileReview), filesAndRevisionsReviewed,
+      drawingRevisionReviewed, partnerReviewPackageLink, partnerAssessmentDocumentLink, feasibilityStatus, feasibilityStatus, proposedProcess,
+      machineAxisRequirement, JSON.stringify(criticalFeatures), JSON.stringify(manufacturingRisks), JSON.stringify(inspectionRequirements),
+      JSON.stringify(assumptions), JSON.stringify(clarificationsRequired), estimatedEngineeringHours, estimatedLeadTime,
+      JSON.stringify(deliverables), partnerDeclaration, partnerSubmittedAt, reviewValidUntil, 'Completed', summary,
+      JSON.stringify(risks), JSON.stringify(clarifications), businessRecommendation, businessRecommendation, internalNotes, now, now
     ]);
 
     var updates = bridgeAssessment ? buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary, pricingReady) : {
@@ -192,78 +139,44 @@ var MidtsTechnicalReviewService = (function () {
     };
     var leadUpdate = MidtsSheetService.updateLeadById(leadId, updates);
 
-    return {
-      ok: true,
-      reviewId: reviewId,
-      leadId: leadId,
-      technicalIntakeId: intakeResult.intake['Technical Intake ID'] || '',
-      reviewerType: reviewerType,
-      reviewer: reviewer,
-      reviewerOrganisation: reviewerOrganisation,
-      reviewerEmail: reviewerEmail,
-      reviewRequestId: reviewRequestId,
-      sourcePackageId: sourcePackageId,
-      filesAndRevisionsReviewed: filesAndRevisionsReviewed,
-      partnerReviewPackageLink: partnerReviewPackageLink,
-      partnerAssessmentDocumentLink: partnerAssessmentDocumentLink,
-      feasibilityStatus: feasibilityStatus,
-      technicalOutcome: feasibilityStatus,
-      partnerSubmittedAt: formatDateValue_(partnerSubmittedAt),
-      recommendation: businessRecommendation,
-      lifecycleStatus: leadUpdate.lead['Lifecycle Status'] || '',
-      vendorPricingStatus: leadUpdate.lead['Vendor Pricing Status'] || '',
-      nextAction: leadUpdate.lead['Next Action']
-    };
+    return { ok: true, reviewId: reviewId, leadId: leadId, technicalIntakeId: intakeResult.intake['Technical Intake ID'] || '', reviewerType: reviewerType, reviewer: reviewer, reviewerOrganisation: reviewerOrganisation, reviewerEmail: reviewerEmail, reviewRequestId: reviewRequestId, sourcePackageId: sourcePackageId, filesAndRevisionsReviewed: filesAndRevisionsReviewed, partnerReviewPackageLink: partnerReviewPackageLink, originalPartnerAssessmentLink: originalPartnerAssessmentLink, partnerAssessmentDocumentLink: partnerAssessmentDocumentLink, assessmentReportPdfUrl: generatedReport.pdfUrl || '', feasibilityStatus: feasibilityStatus, technicalOutcome: feasibilityStatus, partnerSubmittedAt: formatDateValue_(partnerSubmittedAt), recommendation: businessRecommendation, lifecycleStatus: leadUpdate.lead['Lifecycle Status'] || '', vendorPricingStatus: leadUpdate.lead['Vendor Pricing Status'] || '', nextAction: leadUpdate.lead['Next Action'] };
+  }
+
+  function generateAssessmentReport_(reviewId, lead, intake, assessment) {
+    try {
+      var folder = MidtsDriveService.getPartnerAssessmentFolder(lead['Lead ID']);
+      var title = 'Partner Technical Assessment Report - ' + reviewId;
+      var doc = MidtsDriveService.createGoogleDocInFolder(folder, title, [
+        { heading: 'Document Control', lines: ['Document: Partner Technical Assessment Report', 'Assessment ID: ' + reviewId, 'Lead ID: ' + String(lead['Lead ID'] || ''), 'Technical Intake ID: ' + String(intake['Technical Intake ID'] || ''), 'Review request ID: ' + assessment.reviewRequestId, 'Source package ID: ' + assessment.sourcePackageId, 'Generated at: ' + formatDateValue_(new Date())] },
+        { heading: 'Partner', lines: ['Reviewer: ' + assessment.reviewer, 'Organisation: ' + assessment.reviewerOrganisation, 'Email: ' + assessment.reviewerEmail, 'Submitted at: ' + formatDateValue_(assessment.partnerSubmittedAt)] },
+        { heading: 'Project Context', lines: ['Client: ' + String(lead['Full Name'] || ''), 'Company: ' + String(lead['Company'] || ''), 'Project type: ' + String(lead['Project Type'] || intake['Service Type'] || ''), 'Requirement: ' + String(intake['Technical Scope'] || lead['Brief Requirement'] || '')] },
+        { heading: 'Controlled Package', lines: ['Partner review package: ' + assessment.partnerReviewPackageLink, 'Original partner document: ' + (assessment.originalPartnerAssessmentLink || 'Captured directly in Workspace')] },
+        { heading: 'Assessment Scope', lines: [assessment.assessmentScope] },
+        { heading: 'Files And Revisions Reviewed', lines: [assessment.filesAndRevisionsReviewed] },
+        { heading: 'Technical Outcome', lines: ['Feasibility: ' + assessment.feasibilityStatus, 'MIDTS business recommendation: ' + assessment.recommendation, 'Summary: ' + assessment.summary] },
+        { heading: 'Process And Requirements', lines: ['Proposed process: ' + (assessment.proposedProcess || 'Not recorded'), 'Machine / axis requirement: ' + (assessment.machineAxisRequirement || 'Not recorded'), 'Estimated engineering hours: ' + (assessment.estimatedEngineeringHours || 'Not recorded'), 'Estimated lead time: ' + (assessment.estimatedLeadTime || 'Not recorded'), 'Review valid until: ' + formatDateValue_(assessment.reviewValidUntil)] },
+        { heading: 'Critical Features', lines: assessment.criticalFeatures.length ? assessment.criticalFeatures : ['None recorded'] },
+        { heading: 'Manufacturing Risks', lines: assessment.manufacturingRisks.length ? assessment.manufacturingRisks : ['None recorded'] },
+        { heading: 'Inspection Requirements', lines: assessment.inspectionRequirements.length ? assessment.inspectionRequirements : ['None recorded'] },
+        { heading: 'Clarifications Required', lines: assessment.clarificationsRequired.length ? assessment.clarificationsRequired : ['None recorded'] },
+        { heading: 'Assumptions', lines: assessment.assumptions.length ? assessment.assumptions : ['None recorded'] },
+        { heading: 'Deliverables', lines: assessment.deliverables.length ? assessment.deliverables : ['None recorded'] }
+      ]);
+      return { ok: true, id: doc.id, url: doc.url, pdfId: doc.pdfId, pdfUrl: doc.pdfUrl };
+    } catch (error) {
+      return { ok: false, code: 'PARTNER_ASSESSMENT_REPORT_FAILED', message: 'Partner assessment report PDF could not be generated: ' + errorMessage_(error) };
+    }
   }
 
   function buildBridgeLeadUpdates_(feasibilityStatus, now, reviewer, summary, pricingReady) {
-    var base = {
-      'Status': 'Partner Technical Assessment Complete',
-      'Review Status': 'Partner Technical Assessment Complete',
-      'Reviewer': reviewer,
-      'Review Notes': summary,
-      'Last Updated At': now
-    };
+    var base = { 'Status': 'Partner Technical Assessment Complete', 'Review Status': 'Partner Technical Assessment Complete', 'Reviewer': reviewer, 'Review Notes': summary, 'Last Updated At': now };
     if (feasibilityStatus === 'Feasible' || feasibilityStatus === 'Feasible with Assumptions') {
-      if (!pricingReady) {
-        return Object.assign(base, {
-          'Lifecycle Status': 'Partner Decision Required',
-          'Next Action': 'Resolve partner pricing readiness',
-          'Next Action Due': now,
-          'Vendor Pricing Required': 'Yes',
-          'Vendor Pricing Status': 'Assessment Pricing Not Ready'
-        });
-      }
-      return Object.assign(base, {
-        'Lifecycle Status': 'Vendor Pricing',
-        'Next Action': 'Submit vendor pricing',
-        'Next Action Due': now,
-        'Vendor Pricing Required': 'Yes',
-        'Vendor Pricing Status': 'Ready for Pricing'
-      });
+      if (!pricingReady) return Object.assign(base, { 'Lifecycle Status': 'Partner Decision Required', 'Next Action': 'Resolve partner pricing readiness', 'Next Action Due': now, 'Vendor Pricing Required': 'Yes', 'Vendor Pricing Status': 'Assessment Pricing Not Ready' });
+      return Object.assign(base, { 'Lifecycle Status': 'Vendor Pricing', 'Next Action': 'Submit vendor pricing', 'Next Action Due': now, 'Vendor Pricing Required': 'Yes', 'Vendor Pricing Status': 'Ready for Pricing' });
     }
-    if (feasibilityStatus === 'Clarification Required') {
-      return Object.assign(base, {
-        'Lifecycle Status': 'Info Required',
-        'Next Action': 'Request clarification from client',
-        'Next Action Due': now,
-        'Vendor Pricing Status': 'Assessment Clarification Required'
-      });
-    }
-    if (feasibilityStatus === 'Alternative Approach') {
-      return Object.assign(base, {
-        'Lifecycle Status': 'Commercial Review',
-        'Next Action': 'Review partner alternative approach with client',
-        'Next Action Due': now,
-        'Vendor Pricing Status': 'Alternative Proposed'
-      });
-    }
-    return Object.assign(base, {
-      'Lifecycle Status': 'Partner Decision Required',
-      'Next Action': 'Select another partner, propose alternative, or close enquiry',
-      'Next Action Due': now,
-      'Vendor Pricing Status': 'Not Feasible'
-    });
+    if (feasibilityStatus === 'Clarification Required') return Object.assign(base, { 'Lifecycle Status': 'Info Required', 'Next Action': 'Request clarification from client', 'Next Action Due': now, 'Vendor Pricing Status': 'Assessment Clarification Required' });
+    if (feasibilityStatus === 'Alternative Approach') return Object.assign(base, { 'Lifecycle Status': 'Commercial Review', 'Next Action': 'Review partner alternative approach with client', 'Next Action Due': now, 'Vendor Pricing Status': 'Alternative Proposed' });
+    return Object.assign(base, { 'Lifecycle Status': 'Partner Decision Required', 'Next Action': 'Select another partner, propose alternative, or close enquiry', 'Next Action Due': now, 'Vendor Pricing Status': 'Not Feasible' });
   }
 
   function validateAssessment_(assessment) {
@@ -277,33 +190,18 @@ var MidtsTechnicalReviewService = (function () {
     if (!assessment.filesAndRevisionsReviewed) fieldErrors.filesAndRevisionsReviewed = 'Files and revisions reviewed are required.';
     if (!assessment.partnerReviewPackageLink) fieldErrors.partnerReviewPackageLink = 'Partner review package link is required.';
     else if (!isHttpsUrl_(assessment.partnerReviewPackageLink)) fieldErrors.partnerReviewPackageLink = 'Partner review package link must be an https URL.';
-    if (!assessment.partnerAssessmentDocumentLink) fieldErrors.partnerAssessmentDocumentLink = 'Partner assessment document link is required.';
-    else if (!isHttpsUrl_(assessment.partnerAssessmentDocumentLink)) fieldErrors.partnerAssessmentDocumentLink = 'Partner assessment document link must be an https URL.';
+    if (assessment.partnerAssessmentDocumentLink && !isHttpsUrl_(assessment.partnerAssessmentDocumentLink)) fieldErrors.partnerAssessmentDocumentLink = 'Partner assessment document link must be an https URL.';
     if (!assessment.feasibilityStatus) fieldErrors.feasibilityStatus = 'Feasibility status is required.';
     if (!assessment.partnerSubmittedAt) fieldErrors.partnerSubmittedAt = 'Partner submitted timestamp is required.';
     if (!assessment.summary) fieldErrors.reviewSummary = 'Technical assessment summary is required.';
     if (!assessment.partnerDeclaration) fieldErrors.partnerDeclaration = 'Partner declaration is required.';
     if (!assessment.businessRecommendation) fieldErrors.recommendation = 'MIDTS business recommendation must be Qualified, Needs More Info, Nurture, or Not Suitable.';
-
-    if (assessment.businessRecommendation === 'Qualified' && ['Feasible', 'Feasible with Assumptions'].indexOf(assessment.feasibilityStatus) === -1) {
-      fieldErrors.recommendation = 'MIDTS cannot qualify work where the partner technical outcome is not feasible.';
-    }
-
+    if (assessment.businessRecommendation === 'Qualified' && ['Feasible', 'Feasible with Assumptions'].indexOf(assessment.feasibilityStatus) === -1) fieldErrors.recommendation = 'MIDTS cannot qualify work where the partner technical outcome is not feasible.';
     if (assessment.businessRecommendation === 'Qualified' && assessment.feasibilityStatus === 'Feasible with Assumptions') {
       var assumptionEvidence = [assessment.summary, assessment.internalNotes].concat(assessment.risks || []).concat(assessment.assumptions || []).join(' ').toLowerCase();
-      if (assumptionEvidence.indexOf('assumption') === -1 && assumptionEvidence.indexOf('assume') === -1) {
-        fieldErrors.reviewSummary = 'Feasible with Assumptions plus Qualified requires the assumptions to be recorded.';
-      }
+      if (assumptionEvidence.indexOf('assumption') === -1 && assumptionEvidence.indexOf('assume') === -1) fieldErrors.reviewSummary = 'Feasible with Assumptions plus Qualified requires the assumptions to be recorded.';
     }
-
-    if (Object.keys(fieldErrors).length) {
-      return {
-        ok: false,
-        code: 'PARTNER_ASSESSMENT_VALIDATION_FAILED',
-        message: 'Partner Technical Assessment is incomplete or invalid.',
-        fieldErrors: fieldErrors
-      };
-    }
+    if (Object.keys(fieldErrors).length) return { ok: false, code: 'PARTNER_ASSESSMENT_VALIDATION_FAILED', message: 'Partner Technical Assessment is incomplete or invalid.', fieldErrors: fieldErrors };
     return { ok: true };
   }
 
@@ -316,18 +214,12 @@ var MidtsTechnicalReviewService = (function () {
     var headerMap = headerMap_(sheet);
     var output = [];
     for (var index = 0; index < sheet.getLastColumn(); index += 1) output.push('');
-    TECHNICAL_REVIEW_HEADERS.forEach(function (header, index) {
-      if (headerMap[header]) output[headerMap[header] - 1] = row[index] === undefined ? '' : row[index];
-    });
+    TECHNICAL_REVIEW_HEADERS.forEach(function (header, index) { if (headerMap[header]) output[headerMap[header] - 1] = row[index] === undefined ? '' : row[index]; });
     sheet.appendRow(output);
   }
 
   function ensureHeaders_(sheet, headers) {
-    if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.setFrozenRows(1);
-      return;
-    }
+    if (sheet.getLastRow() === 0 || sheet.getLastColumn() === 0) { sheet.getRange(1, 1, 1, headers.length).setValues([headers]); sheet.setFrozenRows(1); return; }
     var existing = headerMap_(sheet);
     var missing = headers.filter(function (header) { return !existing[header]; });
     if (missing.length) sheet.getRange(1, sheet.getLastColumn() + 1, 1, missing.length).setValues([missing]);
@@ -336,11 +228,7 @@ var MidtsTechnicalReviewService = (function () {
 
   function headerMap_(sheet) {
     var headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-    return headers.reduce(function (map, header, index) {
-      var normalized = clean_(header);
-      if (normalized && !map[normalized]) map[normalized] = index + 1;
-      return map;
-    }, {});
+    return headers.reduce(function (map, header, index) { var normalized = clean_(header); if (normalized && !map[normalized]) map[normalized] = index + 1; return map; }, {});
   }
 
   function normalizeFeasibility_(value) {
@@ -375,10 +263,7 @@ var MidtsTechnicalReviewService = (function () {
     if (Array.isArray(value)) return value.map(clean_).filter(Boolean);
     var text = clean_(value);
     if (!text) return [];
-    try {
-      var parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed.map(clean_).filter(Boolean);
-    } catch (error) {}
+    try { var parsed = JSON.parse(text); if (Array.isArray(parsed)) return parsed.map(clean_).filter(Boolean); } catch (error) {}
     return text.split(/\r?\n|;/).map(clean_).filter(Boolean);
   }
 
@@ -401,33 +286,12 @@ var MidtsTechnicalReviewService = (function () {
     return String(date) === 'Invalid Date' ? text : date;
   }
 
-  function fieldError_(field, message, code) {
-    var errors = {};
-    errors[field] = message;
-    return { ok: false, code: code || 'VALIDATION_FAILED', message: message, fieldErrors: errors };
-  }
+  function fieldError_(field, message, code) { var errors = {}; errors[field] = message; return { ok: false, code: code || 'VALIDATION_FAILED', message: message, fieldErrors: errors }; }
+  function isHttpsUrl_(value) { return /^https:\/\/\S+$/i.test(clean_(value)); }
+  function isEmail_(value) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean_(value)); }
+  function formatDateValue_(value) { if (!value) return ''; return value instanceof Date ? Utilities.formatDate(value, 'Europe/London', "yyyy-MM-dd'T'HH:mm:ssXXX") : clean_(value); }
+  function errorMessage_(error) { return String(error && error.message ? error.message : error); }
+  function clean_(value) { return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim(); }
 
-  function isHttpsUrl_(value) {
-    return /^https:\/\/\S+$/i.test(clean_(value));
-  }
-
-  function isEmail_(value) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean_(value));
-  }
-
-  function formatDateValue_(value) {
-    return value instanceof Date ? Utilities.formatDate(value, 'Europe/London', "yyyy-MM-dd'T'HH:mm:ssXXX") : clean_(value);
-  }
-
-  function clean_(value) {
-    return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim();
-  }
-
-  return {
-    FEASIBILITY_VALUES: FEASIBILITY_VALUES,
-    BUSINESS_RECOMMENDATION_VALUES: BUSINESS_RECOMMENDATION_VALUES,
-    TECHNICAL_REVIEW_HEADERS: TECHNICAL_REVIEW_HEADERS,
-    normalizeFeasibility: normalizeFeasibility_,
-    recordReview: recordReview
-  };
+  return { FEASIBILITY_VALUES: FEASIBILITY_VALUES, BUSINESS_RECOMMENDATION_VALUES: BUSINESS_RECOMMENDATION_VALUES, TECHNICAL_REVIEW_HEADERS: TECHNICAL_REVIEW_HEADERS, normalizeFeasibility: normalizeFeasibility_, recordReview: recordReview };
 })();
