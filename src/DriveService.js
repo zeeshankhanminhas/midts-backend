@@ -95,12 +95,27 @@ var MidtsDriveService = (function () {
     folder.addFile(file);
     try { DriveApp.getRootFolder().removeFile(file); } catch (error) {}
 
+    var pdfFile = createPdfExport_(folder, file, safeTitle);
+
     return {
       name: safeTitle,
       id: file.getId(),
       url: file.getUrl(),
-      mimeType: MimeType.GOOGLE_DOCS
+      mimeType: MimeType.GOOGLE_DOCS,
+      pdfName: pdfFile.getName(),
+      pdfId: pdfFile.getId(),
+      pdfUrl: pdfFile.getUrl(),
+      pdfMimeType: MimeType.PDF
     };
+  }
+
+  function createPdfExport_(folder, sourceFile, title) {
+    var pdfBlob = sourceFile.getAs(MimeType.PDF).setName(sanitizeFilename_(title || sourceFile.getName()) + '.pdf');
+    var pdfFile = folder.createFile(pdfBlob);
+    if (!pdfFile || !pdfFile.getId()) {
+      throw new Error('PDF export failed for document: ' + String(title || sourceFile.getName()));
+    }
+    return pdfFile;
   }
 
   function copyFilesByUrl(fileUrls, targetFolder) {
