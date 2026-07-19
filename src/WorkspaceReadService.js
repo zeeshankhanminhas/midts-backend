@@ -139,7 +139,7 @@ var MidtsWorkspaceReadService = (function () {
     });
 
     pending.sort(function (a, b) {
-      return Number(new Date(b.readyAt || b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.readyAt || a.reviewedAt || a.submittedAt || a.dateCreated || 0));
+      return Number(new Date(b.readyAt || b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.readyAt || a.reviewedAt || a.dateCreated || 0));
     });
 
     return {
@@ -389,7 +389,7 @@ var MidtsWorkspaceReadService = (function () {
   }
 
   function technicalReviewComplete_(lead, review) {
-    return equivalent_(lead['Review Status'], ['partner technical assessment complete', 'technical review complete', 'completed', 'complete']) || Boolean(review && review['Technical Review ID']);
+    return equivalent_(lead['Review Status'], ['partner technical assessment complete', 'technical review complete', 'completed', 'complete', 'approved', 'assessment received']) || Boolean(review && review['Technical Review ID']);
   }
 
   function qualificationDecisionComplete_(lead) {
@@ -412,11 +412,28 @@ var MidtsWorkspaceReadService = (function () {
 
   function partnerAssessmentPending_(lead, request, review, vendorPackage) {
     if (!request || !clean_(request['Request ID'])) return false;
+    if (partnerAssessmentPastCurrentStage_(lead)) return false;
     if (technicalReviewComplete_(lead, review)) return false;
     if (clean_(request['Technical Review ID'])) return false;
     if (['Sent', 'Assessment Requested', 'Pending Partner Assessment'].indexOf(clean_(request['Request Status'])) === -1) return false;
     if (!clean_(request['Vendor Package Link']) && !(vendorPackage && clean_(vendorPackage['Drive Folder URL']))) return false;
     return true;
+  }
+
+  function partnerAssessmentPastCurrentStage_(lead) {
+    return equivalent_(lead['Lifecycle Status'], [
+      'gross margin review',
+      'margin review',
+      'quote preparation',
+      'quote draft',
+      'quote approved',
+      'quote sent',
+      'quote accepted',
+      'project active',
+      'invoice issued',
+      'closed',
+      'nurture'
+    ]);
   }
 
   function quoteBuilderPending_(lead) {
