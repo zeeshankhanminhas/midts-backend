@@ -139,7 +139,7 @@ var MidtsWorkspaceReadService = (function () {
     });
 
     pending.sort(function (a, b) {
-      return Number(new Date(b.readyAt || b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.readyAt || a.reviewedAt || a.dateCreated || 0));
+      return Number(new Date(b.readyAt || b.reviewedAt || b.submittedAt || b.dateCreated || 0)) - Number(new Date(a.readyAt || a.reviewedAt || a.submittedAt || a.dateCreated || 0));
     });
 
     return {
